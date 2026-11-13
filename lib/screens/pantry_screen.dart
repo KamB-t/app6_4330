@@ -102,6 +102,10 @@ class _PantryScreenState extends State<PantryScreen> {
   Widget _itemRow(BuildContext context, PantryItem item) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final status = item.expiryStatus();
+    final style = _styleFor(status); // null = no expiry date, theme colors
+    final expired = status == ExpiryStatus.expired;
+    final subtle = style?.accent ?? scheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Dismissible(
@@ -120,6 +124,9 @@ class _PantryScreenState extends State<PantryScreen> {
         onDismissed: (_) => _service.deletePantryItem(item.id),
         child: AppCard(
           margin: EdgeInsets.zero,
+          color: style?.bg,
+          borderColor: style?.border,
+          borderWidth: style == null ? 1 : 1.5,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -128,12 +135,14 @@ class _PantryScreenState extends State<PantryScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
+                    color: style == null
+                        ? scheme.primaryContainer
+                        : Colors.white.withAlpha(expired ? 140 : 200),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.inventory_2_outlined,
-                    color: scheme.onPrimaryContainer,
+                    color: style?.accent ?? scheme.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -143,8 +152,12 @@ class _PantryScreenState extends State<PantryScreen> {
                     children: [
                       Text(
                         capitalize(item.name),
-                        style: textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: expired ? subtle : null,
+                          decoration:
+                              expired ? TextDecoration.lineThrough : null,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -152,16 +165,18 @@ class _PantryScreenState extends State<PantryScreen> {
                           Icon(
                             Icons.event,
                             size: 16,
-                            color: scheme.onSurfaceVariant,
+                            color: subtle,
                           ),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              item.expiryDate == null
-                                  ? 'No expiry date'
-                                  : 'Expires ${DateFormat('yyyy-MM-dd').format(item.expiryDate!)}',
-                              style: textTheme.bodyMedium
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                              _expiryText(item),
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: subtle,
+                                fontWeight: style == null
+                                    ? null
+                                    : FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -170,7 +185,24 @@ class _PantryScreenState extends State<PantryScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                InfoChip(label: '${formatQty(item.qty)} ${item.unit}'),
+                if (style == null)
+                  InfoChip(label: '${formatQty(item.qty)} ${item.unit}')
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(expired ? 140 : 220),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${formatQty(item.qty)} ${item.unit}',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: style.accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -178,4 +210,46 @@ class _PantryScreenState extends State<PantryScreen> {
       ),
     );
   }
+}
+
+/// Card colors for one expiry status. Kept private to this screen on purpose,
+/// so the shared theme file is untouched.
+class _ExpiryStyle {
+  final Color bg, border, accent;
+  const _ExpiryStyle(this.bg, this.border, this.accent);
+}
+
+const _freshStyle =
+    _ExpiryStyle(Color(0xFFE3F2E1), Color(0xFF4C9A52), Color(0xFF2E6B34));
+const _soonStyle =
+    _ExpiryStyle(Color(0xFFFFF3C4), Color(0xFFE0A800), Color(0xFF7A5C00));
+const _urgentStyle =
+    _ExpiryStyle(Color(0xFFFBD9D5), Color(0xFFC62828), Color(0xFF8A1C14));
+const _expiredStyle =
+    _ExpiryStyle(Color(0xFFE9E7E4), Color(0xFFC9C5C0), Color(0xFF8A8580));
+
+/// Null means "no expiry date": use the normal theme card.
+_ExpiryStyle? _styleFor(ExpiryStatus status) {
+  switch (status) {
+    case ExpiryStatus.fresh:
+      return _freshStyle;
+    case ExpiryStatus.soon:
+      return _soonStyle;
+    case ExpiryStatus.urgent:
+      return _urgentStyle;
+    case ExpiryStatus.expired:
+      return _expiredStyle;
+    case ExpiryStatus.none:
+      return null;
+  }
+}
+
+String _expiryText(PantryItem item) {
+  final d = item.daysUntilExpiry();
+  if (d == null) return 'No expiry date';
+  final date = DateFormat('MMM d').format(item.expiryDate!);
+  if (d < 0) return 'Expired $date';
+  if (d == 0) return 'Expires today';
+  if (d == 1) return 'Expires tomorrow';
+  return 'Expires in $d days \u00b7 $date';
 }

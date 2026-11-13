@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:project6/models/recipe.dart';
+import 'package:project6/services/shopping_list_service.dart';
 import 'package:project6/theme/app_theme.dart';
 
 /// Vertical recipe card, built to sit two per row (see RecipesScreen).
-/// Tinted header with a meal icon, then name, chips, and tags, like the
-/// meal slots on the Plan tab.
+/// Tinted header with a meal icon, then name, chips, and (when a [match] is
+/// given) how much of the recipe your pantry already covers.
 class RecipeCard extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback onTap;
-  const RecipeCard({super.key, required this.recipe, required this.onTap});
+
+  /// Pantry match for this recipe. Null hides the pantry section, e.g. when
+  /// the pantry is empty.
+  final RecipeMatch? match;
+
+  const RecipeCard({
+    super.key,
+    required this.recipe,
+    required this.onTap,
+    this.match,
+  });
 
   // Same icons as the Plan tab's meal rows; falls back to a generic one.
   IconData get _icon {
@@ -58,12 +69,17 @@ class RecipeCard extends StatelessWidget {
                         icon: Icons.schedule,
                         label: '${recipe.prepTimeMinutes} min',
                       ),
-                    InfoChip(
-                      icon: Icons.shopping_basket_outlined,
-                      label: '$count item${count == 1 ? '' : 's'}',
-                    ),
+                    if (match == null)
+                      InfoChip(
+                        icon: Icons.shopping_basket_outlined,
+                        label: '$count item${count == 1 ? '' : 's'}',
+                      ),
                   ],
                 ),
+                if (match != null) ...[
+                  const SizedBox(height: 12),
+                  _pantrySection(context, match!),
+                ],
                 if (recipe.tags.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text(
@@ -77,6 +93,38 @@ class RecipeCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// "Ready to cook" badge, or a progress bar + "You have 4 of 5" + what is missing.
+  Widget _pantrySection(BuildContext context, RecipeMatch m) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    if (m.canMakeNow) {
+      return const InfoChip(icon: Icons.check_circle, label: 'Ready to cook');
+    }
+
+    final shown = m.missing.take(3).join(', ');
+    final extra = m.missing.length - 3;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LinearProgressIndicator(value: m.score, minHeight: 6),
+        const SizedBox(height: 8),
+        Text(
+          'You have ${m.have} of ${m.total}',
+          style: textTheme.titleSmall,
+        ),
+        if (m.missing.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Need: $shown${extra > 0 ? ' +$extra more' : ''}',
+            style:
+                textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ],
     );
   }
 }
