@@ -14,11 +14,15 @@ class ShoppingScreen extends StatefulWidget {
   /// Optional: when set, the empty screen shows a "Go to Plan" button.
   final VoidCallback? onGoToPlan;
 
-  /// Called when the user confirms the Bought sheet: the pantry items to add
-  /// and the ids of the shopping-list items to remove. The app leaves this
-  /// null and saves to Firestore.
-  final Future<void> Function(List<PantryItem> items, List<String> shoppingIds)?
-      onBought;
+  /// Called when the user taps Bought: the pantry items to add, the ids of
+  /// shopping-list items to remove, and for items only partly bought, the
+  /// quantity still needed (id -> remaining). The app leaves this null and
+  /// saves to Firestore.
+  final Future<void> Function(
+    List<PantryItem> items,
+    List<String> removeIds,
+    Map<String, double> remaining,
+  )? onBought;
 
   const ShoppingScreen({
     super.key,
@@ -93,21 +97,36 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       }
     }
     final toAdd = [for (final i in checkedItems) _details[i.id]!];
-    final ids = checkedItems.map((i) => i.id).toList();
+    // Bought less than needed (same unit): keep it on the list with only the
+    // shortfall. Anything else is fully bought and leaves the list.
+    final removeIds = <String>[];
+    final remaining = <String, double>{};
+    for (final i in checkedItems) {
+      final d = _details[i.id]!;
+      if (d.unit == i.unit && d.qty < i.qty - 0.0001) {
+        remaining[i.id] = double.parse((i.qty - d.qty).toStringAsFixed(4));
+      } else {
+        removeIds.add(i.id);
+      }
+    }
     try {
-      await (widget.onBought ?? _service.markBought)(toAdd, ids);
+      await (widget.onBought ?? _service.markBought)(
+          toAdd, removeIds, remaining);
       setState(() {
-        for (final id in ids) {
-          _details.remove(id);
+        for (final i in checkedItems) {
+          _details.remove(i.id);
         }
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              toAdd.length == 1
-                  ? 'Added 1 item to your pantry'
-                  : 'Added ${toAdd.length} items to your pantry',
+              (toAdd.length == 1
+                      ? 'Added 1 item to your pantry'
+                      : 'Added ${toAdd.length} items to your pantry') +
+                  (remaining.isEmpty
+                      ? ''
+                      : '. ${remaining.length == 1 ? '1 item still needs' : '${remaining.length} items still need'} more.'),
             ),
           ),
         );
@@ -394,7 +413,7 @@ class _BoughtSheetState extends State<_BoughtSheet> {
     final textTheme = Theme.of(context).textTheme;
     const fieldStyle = TextStyle(fontSize: 17);
     final entered = double.tryParse(d.qty.text.trim());
-    final extra = (entered != null && d.unit == d.source.unit)
+    final diff = (entered != null && d.unit == d.source.unit)
         ? entered - d.source.qty
         : 0.0;
 
@@ -459,12 +478,14 @@ class _BoughtSheetState extends State<_BoughtSheet> {
                   ),
                 ],
               ),
-              if (extra > 0.0001)
+              if (diff > 0.0001 || diff < -0.0001)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '${formatQty(extra)} ${d.unit} more than you need. '
-                    'It all goes into your pantry.',
+                    diff > 0
+                        ? "Don't worry, excess is still added to your pantry!"
+                        : 'You will still need ${formatQty(-diff)} ${d.unit}. '
+                            'It stays on your list.',
                     style:
                         textTheme.bodyMedium?.copyWith(color: scheme.primary),
                   ),

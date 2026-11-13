@@ -128,18 +128,26 @@ class FirestoreService {
   Future<void> setShoppingItemChecked(String id, bool checked) =>
       _shopping.doc(id).update({'checked': checked});
 
-  /// Adds [items] to the pantry and removes the bought items from the
-  /// shopping list, all in one batch so it either fully happens or not at all.
-  Future<void> markBought(List<PantryItem> items, List<String> shoppingIds) async {
+  /// Adds [items] to the pantry, removes fully bought items from the shopping
+  /// list, and for partly bought items lowers the quantity to what is still
+  /// needed (and unchecks them). One batch: all of it happens or none of it.
+  Future<void> markBought(
+    List<PantryItem> items,
+    List<String> removeIds,
+    Map<String, double> remaining,
+  ) async {
     final batch = _db.batch();
     for (final item in items) {
       final doc = _pantry.doc();
       item.id = doc.id;
       batch.set(doc, item.toMap());
     }
-    for (final id in shoppingIds) {
+    for (final id in removeIds) {
       batch.delete(_shopping.doc(id));
     }
+    remaining.forEach((id, qty) {
+      batch.update(_shopping.doc(id), {'qty': qty, 'checked': false});
+    });
     await batch.commit();
   }
 
