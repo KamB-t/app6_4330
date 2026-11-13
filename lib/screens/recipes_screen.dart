@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project6/models/pantry_item.dart';
 import 'package:project6/models/recipe.dart';
-import 'package:project6/screens/add_recipe_screen.dart';
+import 'package:project6/screens/browse_recipes_screen.dart';
 import 'package:project6/screens/recipe_detail_screen.dart';
 import 'package:project6/services/firestore_service.dart';
 import 'package:project6/services/shopping_list_service.dart';
@@ -35,7 +35,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRecipeScreen(onSave: _service.addRecipe),
+        builder: (_) => BrowseRecipesScreen(onSave: _service.addRecipe),
       ),
     );
   }
