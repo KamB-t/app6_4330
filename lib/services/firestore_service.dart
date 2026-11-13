@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:project6/models/recipe.dart';
 import 'package:flutter/foundation.dart';
 import 'package:project6/models/meal_plan.dart';
+import 'package:project6/models/pantry_item.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -65,6 +66,29 @@ class FirestoreService {
 
   Future<void> clearSlot(DateTime date, String meal) =>
       _mealPlans.doc(MealPlan.buildId(date, meal)).delete();
+
+  // ---------- Pantry ----------
+
+  CollectionReference<Map<String, dynamic>> get _pantry =>
+      _db.collection('users').doc(_uid).collection('pantry');
+
+  Stream<List<PantryItem>> streamPantry() {
+    return _pantry.snapshots().map((snap) {
+      final list = snap.docs
+          .map((d) => PantryItem.fromMap(d.data(), id: d.id))
+          .toList();
+      list.sort((a, b) => a.name.compareTo(b.name));
+      return list;
+    });
+  }
+
+  Future<void> addPantryItem(PantryItem item) async {
+    final doc = _pantry.doc();
+    item.id = doc.id;
+    await doc.set(item.toMap());
+  }
+
+  Future<void> deletePantryItem(String id) => _pantry.doc(id).delete();
 
   // ---------- Seed data ----------
 

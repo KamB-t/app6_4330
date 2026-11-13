@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project6/screens/recipes_screen.dart';
 import 'package:project6/services/firestore_service.dart';
 import 'package:project6/screens/plan_screen.dart';
+import 'package:project6/screens/pantry_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
           RecipesScreen(),
           PlanScreen(),
           Center(child: Text('Shopping (coming soon)')),
-          Center(child: Text('Shopping (coming soon)')),
+          PantryScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
