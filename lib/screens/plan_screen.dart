@@ -8,7 +8,8 @@ import 'package:project6/widgets/plan_slot.dart';
 const kMeals = ['breakfast', 'lunch', 'dinner'];
 
 class PlanScreen extends StatefulWidget {
-  const PlanScreen({super.key});
+  final VoidCallback onGenerated;
+  const PlanScreen({super.key, required this.onGenerated});
   @override
   State<PlanScreen> createState() => _PlanScreenState();
 }
@@ -17,6 +18,22 @@ class _PlanScreenState extends State<PlanScreen> {
   final _service = FirestoreService.instance;
   late final List<DateTime> _days; // Monday..Sunday of the current week
   late final Stream<List<MealPlan>> _stream;
+  bool _generating = false;
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    try {
+      await _service.regenerateShoppingList(_days.first, _days.last);
+      widget.onGenerated(); // switches to the Shopping tab
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not generate list: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
 
   @override
   void initState() {
@@ -42,6 +59,24 @@ class _PlanScreenState extends State<PlanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(child: _buildWeek()),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _generating ? null : _generate,
+              child: const Text('Generate shopping list'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeek() {
     return StreamBuilder<List<MealPlan>>(
       stream: _stream,
       builder: (context, snapshot) {

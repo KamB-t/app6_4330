@@ -4,6 +4,8 @@ import 'package:project6/models/recipe.dart';
 import 'package:flutter/foundation.dart';
 import 'package:project6/models/meal_plan.dart';
 import 'package:project6/models/pantry_item.dart';
+import 'package:project6/models/shopping_item.dart';
+import 'package:project6/services/shopping_list_service.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -89,6 +91,70 @@ class FirestoreService {
   }
 
   Future<void> deletePantryItem(String id) => _pantry.doc(id).delete();
+
+  // ---------- Shopping list ----------
+
+  CollectionReference<Map<String, dynamic>> get _shopping =>
+      _db.collection('users').doc(_uid).collection('shoppingList');
+
+  Stream<List<ShoppingItem>> streamShoppingList() {
+    return _shopping.snapshots().map((snap) {
+      final list = snap.docs.map((d) => ShoppingItem.fromMap(d.data())).toList();
+      list.sort((a, b) => a.name.compareTo(b.name));
+      return list;
+    });
+  }
+
+  /// Replaces the stored list with [items]. Items that still exist keep their
+  /// checked state; items no longer needed are deleted.
+  Future<void> saveShoppingList(List<ShoppingItem> items) async {
+    final existing = await _shopping.get();
+    final oldChecked = {
+      for (final d in existing.docs) d.id: (d.data()['checked'] ?? false) as bool
+    };
+    final newIds = items.map((i) => i.id).toSet();
+
+    final batch = _db.batch();
+    for (final d in existing.docs) {
+      if (!newIds.contains(d.id)) batch.delete(d.reference);
+    }
+    for (final item in items) {
+      item.checked = oldChecked[item.id] ?? false;
+      batch.set(_shopping.doc(item.id), item.toMap());
+    }
+    await batch.commit();
+  }
+
+  Future<void> setShoppingItemChecked(String id, bool checked) =>
+      _shopping.doc(id).update({'checked': checked});
+
+  /// Reads the week's plan, the recipes, and the pantry, runs the pure
+  /// calculation, and stores the result. Plan slots whose recipe was deleted
+  /// are skipped.
+  Future<void> regenerateShoppingList(DateTime weekStart, DateTime weekEnd) async {
+    final planSnap = await _mealPlans
+        .where('date', isGreaterThanOrEqualTo: weekStart.millisecondsSinceEpoch)
+        .where('date', isLessThanOrEqualTo: weekEnd.millisecondsSinceEpoch)
+        .get();
+    final plans = planSnap.docs.map((d) => MealPlan.fromMap(d.data())).toList();
+
+    final recipeSnap = await _recipes.get();
+    final recipesById = {
+      for (final d in recipeSnap.docs) d.id: Recipe.fromMap(d.data(), id: d.id)
+    };
+
+    final planRecipes = <Recipe>[
+      for (final p in plans)
+        if (recipesById[p.recipeId] != null) recipesById[p.recipeId]!,
+    ];
+
+    final pantrySnap = await _pantry.get();
+    final pantry = pantrySnap.docs
+        .map((d) => PantryItem.fromMap(d.data(), id: d.id))
+        .toList();
+
+    await saveShoppingList(generateShoppingList(planRecipes, pantry));
+  }
 
   // ---------- Seed data ----------
 

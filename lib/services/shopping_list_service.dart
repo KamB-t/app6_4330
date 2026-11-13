@@ -53,3 +53,10 @@ List<ShoppingItem> generateShoppingList(
 
 // Avoids results like 0.30000000000000004 from decimal arithmetic.
 double _round(double v) => (v * 10000).round() / 10000;
+
+/// Monday and Sunday (both at midnight) of the week containing [now].
+List<DateTime> currentWeekRange([DateTime? now]) {
+  final t = now ?? DateTime.now();
+  final monday = DateTime(t.year, t.month, t.day - (t.weekday - 1));
+  return [monday, DateTime(monday.year, monday.month, monday.day + 6)];
+}

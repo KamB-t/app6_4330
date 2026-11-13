@@ -3,6 +3,7 @@ import 'package:project6/screens/recipes_screen.dart';
 import 'package:project6/services/firestore_service.dart';
 import 'package:project6/screens/plan_screen.dart';
 import 'package:project6/screens/pantry_screen.dart';
+import 'package:project6/screens/shopping_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,11 +29,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(title: Text(_titles[_index])),
       body: IndexedStack(
         index: _index,
-        children: const [
-          RecipesScreen(),
-          PlanScreen(),
-          Center(child: Text('Shopping (coming soon)')),
-          PantryScreen(),
+        children: [
+          const RecipesScreen(),
+          PlanScreen(onGenerated: () => setState(() => _index = 2)),
+          const ShoppingScreen(),
+          const PantryScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
