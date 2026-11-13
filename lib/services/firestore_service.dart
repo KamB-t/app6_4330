@@ -1,26 +1,36 @@
-import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:project6/models/recipe.dart';
 
 class FirestoreService {
   FirestoreService._();
   static final FirestoreService instance = FirestoreService._();
 
-  final List<Recipe> _recipes = [];
-  final _controller = StreamController<List<Recipe>>.broadcast();
+  final _db = FirebaseFirestore.instance;
 
-  Stream<List<Recipe>> streamRecipes() async* {
-    yield List.of(_recipes);
-    yield* _controller.stream;
+  // Every document lives under users/{uid}/..., matching the security rules.
+  String get _uid => FirebaseAuth.instance.currentUser!.uid;
+
+  CollectionReference<Map<String, dynamic>> get _recipes =>
+      _db.collection('users').doc(_uid).collection('recipes');
+
+  // ---------- Recipes ----------
+
+  Stream<List<Recipe>> streamRecipes() {
+    return _recipes.snapshots().map((snap) {
+      final list = snap.docs
+          .map((d) => Recipe.fromMap(d.data(), id: d.id))
+          .toList();
+      list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return list;
+    });
   }
 
   Future<void> addRecipe(Recipe recipe) async {
-    recipe.id = DateTime.now().microsecondsSinceEpoch.toString();
-    _recipes.add(recipe);
-    _controller.add(List.of(_recipes));
+    final doc = _recipes.doc(); // Firestore generates the id
+    recipe.id = doc.id;
+    await doc.set(recipe.toMap());
   }
 
-  Future<void> deleteRecipe(String id) async {
-    _recipes.removeWhere((r) => r.id == id);
-    _controller.add(List.of(_recipes));
-  }
+  Future<void> deleteRecipe(String id) => _recipes.doc(id).delete();
 }
