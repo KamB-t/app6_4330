@@ -48,7 +48,7 @@ void main() {
         expect(saved, isFalse);
       });
 
-  testWidgets('Shopping list screen shows the empty-plan message when there are no items',
+  testWidgets('Shopping list screen shows the empty message when there are no items',
           (tester) async {
         await tester.pumpWidget(MaterialApp(
           home: Scaffold(
@@ -58,7 +58,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.text('Your plan is empty. Add meals in the Plan tab, then generate your list.'),
+          find.text('Open a recipe and tap "Add missing ingredients to shopping list".'),
           findsOneWidget,
         );
       });

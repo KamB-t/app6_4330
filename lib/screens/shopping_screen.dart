@@ -3,16 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:project6/models/pantry_item.dart';
 import 'package:project6/models/shopping_item.dart';
 import 'package:project6/services/firestore_service.dart';
-import 'package:project6/services/shopping_list_service.dart';
 import 'package:project6/theme/app_theme.dart';
 import 'package:project6/widgets/ingredient_row.dart' show kUnits;
 
 class ShoppingScreen extends StatefulWidget {
   /// Tests pass a fake stream; the app leaves this null and uses Firestore.
   final Stream<List<ShoppingItem>>? itemsStream;
-
-  /// Optional: when set, the empty screen shows a "Go to Plan" button.
-  final VoidCallback? onGoToPlan;
 
   /// Called when the user taps Bought: the pantry items to add, the ids of
   /// shopping-list items to remove, and for items only partly bought, the
@@ -27,7 +23,6 @@ class ShoppingScreen extends StatefulWidget {
   const ShoppingScreen({
     super.key,
     this.itemsStream,
-    this.onGoToPlan,
     this.onBought,
   });
   @override
@@ -37,7 +32,6 @@ class ShoppingScreen extends StatefulWidget {
 class _ShoppingScreenState extends State<ShoppingScreen> {
   FirestoreService get _service => FirestoreService.instance; // only touched when used
   late final Stream<List<ShoppingItem>> _stream;
-  bool _busy = false;
 
   /// What the user entered when they checked each item off, keyed by shopping
   /// item id. Lives in memory only; if the app restarts, the Bought button asks
@@ -140,22 +134,6 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
     }
   }
 
-  Future<void> _regenerate() async {
-    setState(() => _busy = true);
-    try {
-      final week = currentWeekRange();
-      await _service.regenerateShoppingList(week[0], week[1]);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not regenerate list: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -176,9 +154,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                   icon: Icons.shopping_cart_outlined,
                   title: 'Nothing to buy yet',
                   message:
-                      'Your plan is empty. Add meals in the Plan tab, then generate your list.',
-                  actionLabel: widget.onGoToPlan == null ? null : 'Go to Plan',
-                  onAction: widget.onGoToPlan,
+                      'Open a recipe and tap "Add missing ingredients to shopping list".',
                 );
               }
               final checkedItems = items.where((i) => i.checked).toList();
@@ -195,7 +171,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                   ),
                   if (checkedItems.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       child: SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -208,17 +184,6 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                 ],
               );
             },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _busy ? null : _regenerate,
-              icon: const Icon(Icons.refresh),
-              label: Text(_busy ? 'Updating…' : 'Regenerate list'),
-            ),
           ),
         ),
       ],

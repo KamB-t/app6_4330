@@ -120,9 +120,7 @@ class AppTheme {
           elevation: 0,
           minimumSize: const Size(64, 56),
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const RoundedRectangleBorder(), // square corners
           textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
       ),
@@ -139,9 +137,7 @@ class AppTheme {
           foregroundColor: AppColors.oxblood,
           side: const BorderSide(color: AppColors.oxblood, width: 1.5),
           minimumSize: const Size(64, 52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: const RoundedRectangleBorder(), // square corners
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
@@ -150,13 +146,15 @@ class AppTheme {
         backgroundColor: AppColors.rustySpice,
         foregroundColor: Colors.white,
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-        ),
+        shape: RoundedRectangleBorder(), // square corners
       ),
+
+      // Filter / choice chips are buttons too: square corners.
+      chipTheme: const ChipThemeData(shape: RoundedRectangleBorder()),
 
       navigationBarTheme: NavigationBarThemeData(
         height: 78,
+        indicatorShape: const RoundedRectangleBorder(), // square tab highlight
         backgroundColor: Colors.white,
         elevation: 2,
         indicatorColor: AppColors.navIndicator,

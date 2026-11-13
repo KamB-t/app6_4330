@@ -169,9 +169,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(64, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: const RoundedRectangleBorder(),
               ),
               onPressed: () => setState(() => _drafts.add(IngredientDraft())),
               icon: const Icon(Icons.add),

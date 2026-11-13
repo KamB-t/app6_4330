@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:project6/screens/pantry_screen.dart';
-import 'package:project6/screens/plan_screen.dart';
 import 'package:project6/screens/recipes_screen.dart';
 import 'package:project6/screens/shopping_screen.dart';
 import 'package:project6/services/firestore_service.dart';
@@ -14,7 +13,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
-  static const _titles = ['Recipes', 'Plan', 'Shopping', 'Pantry'];
+  static const _titles = ['Recipes', 'Shopping', 'Pantry'];
 
   @override
   void initState() {
@@ -41,8 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _index,
         children: [
           const RecipesScreen(),
-          PlanScreen(onGenerated: () => setState(() => _index = 2)),
-          ShoppingScreen(onGoToPlan: () => setState(() => _index = 1)),
+          const ShoppingScreen(),
           const PantryScreen(),
         ],
       ),
@@ -54,11 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.menu_book_outlined, size: 28),
             selectedIcon: Icon(Icons.menu_book, size: 28),
             label: 'Recipes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined, size: 28),
-            selectedIcon: Icon(Icons.calendar_month, size: 28),
-            label: 'Plan',
           ),
           NavigationDestination(
             icon: Icon(Icons.shopping_cart_outlined, size: 28),

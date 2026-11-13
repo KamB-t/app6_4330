@@ -64,6 +64,33 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
   }
 
+  /// Adds what the pantry doesn't cover for this recipe to the shopping list.
+  Future<void> _addMissing() async {
+    setState(() => _busy = true);
+    try {
+      final count =
+          await FirestoreService.instance.addMissingToShoppingList(recipe);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            count == 0
+                ? 'You already have everything for ${recipe.name}.'
+                : 'Added $count ${count == 1 ? 'item' : 'items'} to your shopping list.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update shopping list: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -90,9 +117,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete recipe?'),
-        content: Text(
-          'Delete "${recipe.name}"? Meal plan slots that use it are kept.',
-        ),
+        content: Text('Delete "${recipe.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -242,6 +267,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
+              onPressed: _busy ? null : _addMissing,
+              icon: const Icon(Icons.add_shopping_cart),
+              label: const Text('Add missing ingredients to shopping list'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
               onPressed: _edit,
               icon: const Icon(Icons.edit_outlined),
               label: const Text('Edit recipe'),
@@ -255,9 +289,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 minimumSize: const Size(64, 52),
                 foregroundColor: scheme.error,
                 side: BorderSide(color: scheme.error),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: const RoundedRectangleBorder(),
               ),
               onPressed: () => _confirmDelete(context),
               icon: const Icon(Icons.delete_outline),

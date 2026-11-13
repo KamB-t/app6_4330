@@ -12,31 +12,125 @@ import 'package:project6/models/recipe.dart';
 // quantity + unit the rest of the app understands.
 
 /// A recipe from the API. [imageUrl] is the same link stored on the recipe,
-/// kept here for convenience.
+/// kept here for convenience; [category] is TheMealDB's category, lowercase
+/// ("beef", "breakfast", ...), used for the meal-type filters.
 class OnlineRecipe {
   final Recipe recipe;
   final String? imageUrl;
-  const OnlineRecipe(this.recipe, this.imageUrl);
+  final String category;
+  const OnlineRecipe(this.recipe, this.imageUrl, {this.category = ''});
 }
 
 class MealApi {
   static const _base = 'https://www.themealdb.com/api/json/v1/1';
 
-  /// Searched together to fill the screen before the user types anything.
-  static const featuredQueries = [
-    'chicken',
-    'beef',
-    'pasta',
-    'salmon',
-    'egg',
-    'rice',
+  /// Every recipe seen so far this session, keyed by lowercase name.
+  static final Map<String, OnlineRecipe> _cache = {};
+
+  /// Name searches that fill the catalog, on top of one search per letter.
+  static const _catalogTerms = [
+    'chicken', 'beef', 'pork', 'lamb', 'fish', 'salmon', 'pasta', 'rice',
+    'egg', 'soup', 'salad', 'curry', 'pie', 'cake', 'pancake', 'breakfast',
+    'vegetable', 'potato',
   ];
 
-  /// Recipes whose name matches [query].
+  /// Recipes whose name matches [query]. Results are also remembered in the
+  /// catalog.
   Future<List<OnlineRecipe>> search(String query) async {
     final uri = Uri.parse('$_base/search.php')
         .replace(queryParameters: {'s': query.trim()});
-    final json = await _getJson(uri);
+    return _remember(await _getJson(uri));
+  }
+
+  /// A big mixed list: one lookup per first letter plus a few popular words,
+  /// merged without duplicates. Loaded once, then served from memory. Only
+  /// throws if every single lookup fails (for example, no internet).
+  Future<List<OnlineRecipe>> catalog() async {
+    if (_cache.isNotEmpty) return _cache.values.toList();
+    Object? firstError;
+    var failures = 0;
+    final uris = <Uri>[
+      for (var c = 97; c <= 122; c++)
+        Uri.parse('$_base/search.php')
+            .replace(queryParameters: {'f': String.fromCharCode(c)}),
+      for (final t in _catalogTerms)
+        Uri.parse('$_base/search.php').replace(queryParameters: {'s': t}),
+    ];
+    await Future.wait(uris.map((u) async {
+      try {
+        _remember(await _getJson(u));
+      } catch (e) {
+        failures++;
+        firstError ??= e;
+      }
+    }));
+    if (failures == uris.length) throw firstError!;
+    return _cache.values.toList();
+  }
+
+  /// Pulls recipes that fit [f] straight from the API, so a filter can find
+  /// recipes that weren't in the starter list. The API's category and
+  /// ingredient lists only hold names, so the best few are looked up in full
+  /// and remembered in the catalog. Nothing is returned: callers re-read
+  /// [catalog] and filter as usual.
+  Future<void> fetchForFilters(RecipeFilters f, {int maxLookups = 24}) async {
+    final uris = <Uri>[];
+    if (f.ingredients.isNotEmpty) {
+      // Most selective first; the other ingredients are checked afterwards.
+      final word = f.ingredients.first.trim().replaceAll(' ', '_');
+      uris.add(Uri.parse('$_base/filter.php')
+          .replace(queryParameters: {'i': word}));
+    } else {
+      final cats = <String>{
+        for (final t in f.mealTypes) ...?mealTypeCategories[t],
+      };
+      for (final c in cats) {
+        final name = c[0].toUpperCase() + c.substring(1);
+        uris.add(Uri.parse('$_base/filter.php')
+            .replace(queryParameters: {'c': name}));
+      }
+    }
+    if (uris.isEmpty) return;
+
+    // Each list holds {idMeal, strMeal, strMealThumb}.
+    final lists = await Future.wait(uris.map((u) async {
+      try {
+        final meals = (await _getJson(u))['meals'];
+        return meals is List ? meals : <dynamic>[];
+      } catch (_) {
+        return <dynamic>[];
+      }
+    }));
+
+    // Take turns between lists so one big category doesn't crowd out the rest.
+    final ids = <String>[];
+    for (var i = 0; ids.length < maxLookups; i++) {
+      var any = false;
+      for (final list in lists) {
+        if (i >= list.length) continue;
+        any = true;
+        final m = list[i];
+        if (m is! Map) continue;
+        final name = (m['strMeal'] ?? '').toString().toLowerCase();
+        final id = (m['idMeal'] ?? '').toString();
+        if (id.isEmpty || _cache.containsKey(name) || ids.contains(id)) continue;
+        ids.add(id);
+        if (ids.length >= maxLookups) break;
+      }
+      if (!any) break;
+    }
+
+    await Future.wait(ids.map((id) async {
+      try {
+        _remember(await _getJson(Uri.parse('$_base/lookup.php')
+            .replace(queryParameters: {'i': id})));
+      } catch (_) {
+        // Skip a recipe that fails to load.
+      }
+    }));
+  }
+
+  List<OnlineRecipe> _remember(Map<String, dynamic> json) {
     final meals = json['meals'];
     if (meals is! List) return []; // the API sends null when nothing matches
     final out = <OnlineRecipe>[];
@@ -44,32 +138,15 @@ class MealApi {
       if (m is! Map<String, dynamic>) continue;
       final r = mealToRecipe(m);
       if (r == null) continue;
-      out.add(OnlineRecipe(r, r.imageUrl));
+      final online = OnlineRecipe(
+        r,
+        r.imageUrl,
+        category: (m['strCategory'] ?? '').toString().trim().toLowerCase(),
+      );
+      _cache.putIfAbsent(r.name.toLowerCase(), () => online);
+      out.add(online);
     }
     return out;
-  }
-
-  /// A mixed starter list (a few recipes per popular search, no duplicates).
-  Future<List<OnlineRecipe>> featured() async {
-    Object? firstError;
-    var failures = 0;
-    final lists = await Future.wait(featuredQueries.map((q) async {
-      try {
-        return (await search(q)).take(5).toList();
-      } catch (e) {
-        failures++;
-        firstError ??= e;
-        return <OnlineRecipe>[];
-      }
-    }));
-    if (failures == featuredQueries.length) throw firstError!;
-
-    final seen = <String>{};
-    return [
-      for (final list in lists)
-        for (final r in list)
-          if (seen.add(r.recipe.name.toLowerCase())) r,
-    ];
   }
 
   Future<Map<String, dynamic>> _getJson(Uri uri) async {
@@ -220,3 +297,58 @@ ParsedMeasure parseMeasure(String raw) {
 }
 
 double _round(double v) => (v * 10000).round() / 10000;
+
+
+// ---------------------------------------------------------------------------
+// Filters for the online recipe list
+// ---------------------------------------------------------------------------
+
+/// TheMealDB has no lunch or dinner, so each meal type is a group of its
+/// categories. They overlap on purpose (pasta works for lunch or dinner).
+const Map<String, Set<String>> mealTypeCategories = {
+  'Breakfast': {'breakfast'},
+  'Lunch': {'starter', 'side', 'pasta', 'vegetarian', 'vegan'},
+  'Dinner': {
+    'beef', 'chicken', 'lamb', 'pork', 'goat', 'seafood', 'pasta',
+    'vegetarian', 'vegan', 'miscellaneous',
+  },
+  'Dessert': {'dessert'},
+};
+
+/// What the user picked in the Filters pop-up.
+class RecipeFilters {
+  /// Meal types (keys of [mealTypeCategories]). A recipe matches if it fits
+  /// any selected type.
+  final Set<String> mealTypes;
+
+  /// Ingredient words, lowercase. A recipe must use all of them.
+  final Set<String> ingredients;
+
+  RecipeFilters({Set<String>? mealTypes, Set<String>? ingredients})
+      : mealTypes = mealTypes ?? <String>{},
+        ingredients = ingredients ?? <String>{};
+
+  RecipeFilters copy() =>
+      RecipeFilters(mealTypes: {...mealTypes}, ingredients: {...ingredients});
+
+  int get count => mealTypes.length + ingredients.length;
+}
+
+bool matchesMealType(OnlineRecipe r, String type) {
+  final cats = mealTypeCategories[type] ?? const <String>{};
+  return cats.contains(r.category) ||
+      r.recipe.tags.contains(type.toLowerCase());
+}
+
+/// True if the recipe passes the pop-up filters. An ingredient word matches
+/// part of a name, so "chicken" also finds "chicken breast".
+bool matchesFilters(OnlineRecipe r, RecipeFilters f) {
+  if (f.mealTypes.isNotEmpty &&
+      !f.mealTypes.any((t) => matchesMealType(r, t))) {
+    return false;
+  }
+  for (final word in f.ingredients) {
+    if (!r.recipe.ingredients.any((i) => i.name.contains(word))) return false;
+  }
+  return true;
+}

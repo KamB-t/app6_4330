@@ -83,4 +83,61 @@ void main() {
       expect(mealToRecipe({'strMeal': 'Empty'}), isNull);
     });
   });
+
+  group('filters', () {
+    OnlineRecipe online(String name, String category, List<String> ingredients) =>
+        OnlineRecipe(
+          Recipe(
+            name: name,
+            ingredients: [
+              for (final i in ingredients)
+                Ingredient(name: i, qty: 1, unit: 'count'),
+            ],
+            tags: [category],
+          ),
+          null,
+          category: category,
+        );
+
+    final pancakes = online('Pancakes', 'breakfast', ['flour', 'egg', 'milk']);
+    final stew = online('Beef Stew', 'beef', ['beef', 'carrot', 'onion']);
+    final pasta = online('Penne', 'pasta', ['penne', 'garlic', 'olive oil']);
+    final cake = online('Cake', 'dessert', ['flour', 'sugar', 'egg']);
+
+    test('no filters keeps everything', () {
+      expect(
+        [pancakes, stew, pasta, cake].every((r) => matchesFilters(r, RecipeFilters())),
+        isTrue,
+      );
+    });
+
+    test('meal types', () {
+      expect(matchesFilters(pancakes, RecipeFilters(mealTypes: {'Breakfast'})), isTrue);
+      expect(matchesFilters(stew, RecipeFilters(mealTypes: {'Breakfast'})), isFalse);
+      expect(matchesFilters(stew, RecipeFilters(mealTypes: {'Dinner'})), isTrue);
+      expect(matchesFilters(pasta, RecipeFilters(mealTypes: {'Lunch'})), isTrue);
+      expect(matchesFilters(pasta, RecipeFilters(mealTypes: {'Dinner'})), isTrue);
+      expect(matchesFilters(cake, RecipeFilters(mealTypes: {'Dinner'})), isFalse);
+    });
+
+    test('several meal types match any of them', () {
+      final f = RecipeFilters(mealTypes: {'Breakfast', 'Dessert'});
+      expect(matchesFilters(pancakes, f), isTrue);
+      expect(matchesFilters(cake, f), isTrue);
+      expect(matchesFilters(stew, f), isFalse);
+    });
+
+    test('ingredients must all be used, and match part of a name', () {
+      expect(matchesFilters(pancakes, RecipeFilters(ingredients: {'egg'})), isTrue);
+      expect(matchesFilters(pancakes, RecipeFilters(ingredients: {'egg', 'flour'})), isTrue);
+      expect(matchesFilters(pancakes, RecipeFilters(ingredients: {'egg', 'sugar'})), isFalse);
+      expect(matchesFilters(pasta, RecipeFilters(ingredients: {'oil'})), isTrue);
+    });
+
+    test('meal type and ingredient together', () {
+      final f = RecipeFilters(mealTypes: {'Dessert'}, ingredients: {'sugar'});
+      expect(matchesFilters(cake, f), isTrue);
+      expect(matchesFilters(pancakes, f), isFalse);
+    });
+  });
 }
