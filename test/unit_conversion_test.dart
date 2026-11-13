@@ -91,4 +91,33 @@ void main() {
       closeTo(0.5268, 0.001),
     );
   });
+
+  test('Separate pantry rows for the same item add up (1 + 2 garlic = 3)', () {
+    final r = recipe('Garlic bread', [ing('garlic', 3, 'count')]);
+    final pantry = [
+      PantryItem(name: 'garlic', qty: 1, unit: 'count'),
+      PantryItem(
+        name: ' Garlic ',
+        qty: 2,
+        unit: 'count',
+        expiryDate: DateTime(2099, 1, 1),
+      ),
+    ];
+
+    expect(generateShoppingList([r], pantry), isEmpty);
+    final m = rankRecipesByPantry([r], pantry).single;
+    expect(m.canMakeNow, isTrue);
+    expect(m.have, 1);
+  });
+
+  test('Rows in different units of one family also add up', () {
+    final r = recipe('Rice', [ing('rice', 1, 'kg')]);
+    final pantry = [
+      PantryItem(name: 'rice', qty: 600, unit: 'g'),
+      PantryItem(name: 'rice', qty: 0.4, unit: 'kg'),
+    ];
+
+    expect(generateShoppingList([r], pantry), isEmpty);
+    expect(rankRecipesByPantry([r], pantry).single.canMakeNow, isTrue);
+  });
 }
