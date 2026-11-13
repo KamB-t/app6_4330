@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meal_planner/models/meal_plan.dart';
-import 'package:meal_planner/models/recipe.dart';
+import 'package:project6/models/meal_plan.dart';
+import 'package:project6/models/recipe.dart';
 
 void main() {
   test('Recipe toMap then fromMap keeps name, ingredients, prep time', () {
