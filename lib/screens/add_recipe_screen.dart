@@ -83,6 +83,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
       // Editing keeps the recipe's identity, favorite flag, date and photo.
       id: old?.id ?? '',
       isFavorite: old?.isFavorite ?? false,
+      inProgress: old?.inProgress ?? false,
       createdAt: old?.createdAt,
       imageUrl: old?.imageUrl,
       name: _name.text.trim(),

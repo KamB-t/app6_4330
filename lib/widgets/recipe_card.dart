@@ -14,6 +14,12 @@ class RecipeCard extends StatelessWidget {
   /// the pantry is empty.
   final RecipeMatch? match;
 
+  // A started recipe turns green (same greens as fresh pantry items).
+  static const _greenBg = Color(0xFFE3F2E1);
+  static const _greenBorder = Color(0xFF4C9A52);
+  static const _greenAccent = Color(0xFF2E6B34);
+  static const _greenHeader = Color(0xFFCDE8CB);
+
   const RecipeCard({
     super.key,
     required this.recipe,
@@ -34,9 +40,13 @@ class RecipeCard extends StatelessWidget {
   Widget _header(ColorScheme scheme) {
     final iconHeader = Container(
       height: recipe.imageUrl == null ? 76 : 110,
-      color: scheme.primaryContainer,
+      color: recipe.inProgress ? _greenHeader : scheme.primaryContainer,
       alignment: Alignment.center,
-      child: Icon(_icon, size: 38, color: scheme.onPrimaryContainer),
+      child: Icon(
+        _icon,
+        size: 38,
+        color: recipe.inProgress ? _greenAccent : scheme.onPrimaryContainer,
+      ),
     );
     final url = recipe.imageUrl;
     if (url == null) return iconHeader;
@@ -61,6 +71,9 @@ class RecipeCard extends StatelessWidget {
     return AppCard(
       radius: 0, // square corners
       margin: EdgeInsets.zero, // spacing is handled by the grid in RecipesScreen
+      color: recipe.inProgress ? _greenBg : null,
+      borderColor: recipe.inProgress ? _greenBorder : null,
+      borderWidth: recipe.inProgress ? 2 : 1,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -83,6 +96,11 @@ class RecipeCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
+                    if (recipe.inProgress)
+                      const InfoChip(
+                        icon: Icons.play_circle_outline,
+                        label: 'In progress',
+                      ),
                     if (recipe.prepTimeMinutes > 0)
                       InfoChip(
                         icon: Icons.schedule,

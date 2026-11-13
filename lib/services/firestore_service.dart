@@ -50,6 +50,33 @@ class FirestoreService {
     await batch.commit();
   }
 
+  /// Starts a recipe: subtracts its ingredients from the pantry (items used up
+  /// are deleted) and marks it in progress, in one batch. Returns the names of
+  /// ingredients the pantry couldn't fully cover.
+  Future<List<String>> startRecipe(Recipe recipe) async {
+    final snap = await _pantry.get();
+    final pantry = snap.docs
+        .map((d) => PantryItem.fromMap(d.data(), id: d.id))
+        .toList();
+    final result = deductFromPantry(recipe.ingredients, pantry);
+
+    final batch = _db.batch();
+    result.newQty.forEach((id, qty) {
+      if (qty <= 0) {
+        batch.delete(_pantry.doc(id));
+      } else {
+        batch.update(_pantry.doc(id), {'qty': qty});
+      }
+    });
+    batch.update(_recipes.doc(recipe.id), {'inProgress': true});
+    await batch.commit();
+    return result.shortfall;
+  }
+
+  /// Marks a started recipe completed. The pantry is not changed.
+  Future<void> completeRecipe(String id) =>
+      _recipes.doc(id).update({'inProgress': false});
+
   Future<void> deleteRecipe(String id) => _recipes.doc(id).delete();
 
   // ---------- Meal plan ----------

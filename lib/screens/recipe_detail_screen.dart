@@ -14,6 +14,55 @@ class RecipeDetailScreen extends StatefulWidget {
 
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   late Recipe recipe; // the version on screen; replaced after an edit
+  bool _busy = false; // a start/complete request is running
+
+  static const _green = Color(0xFF2E6B34);
+
+  /// Subtracts the ingredients from the pantry and marks the recipe started.
+  Future<void> _start() async {
+    setState(() => _busy = true);
+    try {
+      final short = await FirestoreService.instance.startRecipe(recipe);
+      if (!mounted) return;
+      setState(() => recipe.inProgress = true);
+      final names = short.map(capitalize).join(', ');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            short.isEmpty
+                ? 'Started. Ingredients were subtracted from your pantry.'
+                : 'Started. Your pantry did not fully cover: $names. '
+                    'It used what you had.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start recipe: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Marks the recipe completed. Its card goes back to normal.
+  Future<void> _complete() async {
+    setState(() => _busy = true);
+    try {
+      await FirestoreService.instance.completeRecipe(recipe.id);
+      if (mounted) setState(() => recipe.inProgress = false);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update recipe: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -121,6 +170,25 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 for (final t in recipe.tags) InfoChip(label: t),
               ],
             ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: recipe.inProgress
+                ? ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: _busy ? null : _complete,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Completed recipe'),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _busy ? null : _start,
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Start recipe'),
+                  ),
           ),
           const SectionTitle('Ingredients'),
           AppCard(

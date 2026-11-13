@@ -202,3 +202,67 @@ List<RecipeMatch> rankRecipesByPantry(
   });
   return matches;
 }
+
+
+// ---------------------------------------------------------------------------
+// Using a recipe's ingredients up
+// ---------------------------------------------------------------------------
+
+/// What starting a recipe does to the pantry.
+class PantryDeduction {
+  /// Pantry item id -> quantity left, in that item's own unit. 0 means the
+  /// item is used up and should be removed. Items not listed are untouched.
+  final Map<String, double> newQty;
+
+  /// Ingredients the pantry couldn't fully cover (everything usable was used).
+  final List<String> shortfall;
+
+  const PantryDeduction(this.newQty, this.shortfall);
+}
+
+/// Subtracts [ingredients] from [pantryItems]. Same rules as the shopping
+/// list: matching name, units convert within a family, expired items are never
+/// used. Items that expire soonest are used first.
+PantryDeduction deductFromPantry(
+  List<Ingredient> ingredients,
+  List<PantryItem> pantryItems, {
+  DateTime? now, // only tests pass this, to pin "today"
+}) {
+  final usable = pantryItems.where((p) => !p.isExpired(now)).toList()
+    ..sort((a, b) {
+      final ea = a.expiryDate, eb = b.expiryDate;
+      if (ea == null && eb == null) return 0;
+      if (ea == null) return 1; // no expiry date: use last
+      if (eb == null) return -1;
+      return ea.compareTo(eb);
+    });
+
+  final leftBase = {for (final p in usable) p.id: toBaseQty(p.qty, p.unit)};
+  final touched = <String>{};
+  final shortfall = <String>[];
+
+  for (final ing in ingredients) {
+    final name = ing.name.trim().toLowerCase();
+    final family = unitFamily(ing.unit);
+    var need = toBaseQty(ing.qty, ing.unit);
+    for (final p in usable) {
+      if (need <= 0.001) break;
+      if (p.name != name || unitFamily(p.unit) != family) continue;
+      final avail = leftBase[p.id]!;
+      if (avail <= 0) continue;
+      final take = avail < need ? avail : need;
+      leftBase[p.id] = avail - take;
+      need -= take;
+      touched.add(p.id);
+    }
+    if (need > 0.001) shortfall.add(name);
+  }
+
+  final newQty = <String, double>{};
+  for (final p in usable) {
+    if (!touched.contains(p.id)) continue;
+    final left = _round(fromBaseQty(leftBase[p.id]!, p.unit));
+    newQty[p.id] = left <= 0.0001 ? 0 : left;
+  }
+  return PantryDeduction(newQty, shortfall);
+}

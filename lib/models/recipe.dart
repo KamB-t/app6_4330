@@ -25,6 +25,7 @@ class Recipe {
   int? calories;
   String? imageUrl; // photo link (online recipes); null if none
   bool isFavorite;
+  bool inProgress; // started and not yet marked completed
   DateTime createdAt;
 
   Recipe({
@@ -37,6 +38,7 @@ class Recipe {
     this.calories,
     this.imageUrl,
     this.isFavorite = false,
+    this.inProgress = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -52,6 +54,7 @@ class Recipe {
     calories: m['calories'] as int?,
     imageUrl: m['imageUrl'] as String?,
     isFavorite: (m['isFavorite'] ?? false) as bool,
+    inProgress: (m['inProgress'] ?? false) as bool,
     createdAt: DateTime.fromMillisecondsSinceEpoch(
         (m['createdAt'] ?? 0) as int),
   );
@@ -65,6 +68,7 @@ class Recipe {
     'calories': calories,
     'imageUrl': imageUrl,
     'isFavorite': isFavorite,
+    'inProgress': inProgress,
     'createdAt': createdAt.millisecondsSinceEpoch,
   };
 }

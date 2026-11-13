@@ -132,7 +132,8 @@ class _RecipesScreenState extends State<RecipesScreen> {
     List<PantryItem> pantry,
   ) {
     final ranked = rankRecipesByPantry(all, pantry); // best match first
-    final readyCount = ranked.where((m) => m.canMakeNow).length;
+    final readyCount =
+        ranked.where((m) => m.canMakeNow && !m.recipe.inProgress).length;
 
     // "All recipes" keeps the original order; the others use the ranking.
     List<RecipeMatch> ordered = ranked;
@@ -141,14 +142,22 @@ class _RecipesScreenState extends State<RecipesScreen> {
       ordered = [for (final r in all) byId[r.id]!];
     }
 
+    // Started recipes always come first, whatever the filter, and drop back
+    // into their normal place once completed.
+    final started = [
+      for (final r in all)
+        if (r.inProgress && r.name.toLowerCase().contains(_search)) r,
+    ];
     var shown = ordered
-        .where((m) => m.recipe.name.toLowerCase().contains(_search))
+        .where((m) =>
+            !m.recipe.inProgress &&
+            m.recipe.name.toLowerCase().contains(_search))
         .toList();
     if (_mode == _Mode.ready) {
       shown = shown.where((m) => m.canMakeNow).toList();
     }
 
-    if (shown.isEmpty) {
+    if (shown.isEmpty && started.isEmpty) {
       if (_mode == _Mode.ready && _search.isEmpty) {
         return EmptyState(
           icon: Icons.kitchen,
@@ -165,18 +174,18 @@ class _RecipesScreenState extends State<RecipesScreen> {
       );
     }
 
-    final cards = [
-      for (final m in shown)
-        RecipeCard(
-          recipe: m.recipe,
-          match: pantry.isEmpty ? null : m,
+    Widget card(Recipe r, RecipeMatch? m) => RecipeCard(
+          recipe: r,
+          match: m,
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => RecipeDetailScreen(recipe: m.recipe),
-            ),
+            MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: r)),
           ),
-        ),
+        );
+
+    final cards = [
+      for (final r in started) card(r, null), // no pantry bar once started
+      for (final m in shown) card(m.recipe, pantry.isEmpty ? null : m),
     ];
 
     // Two cards per row. IntrinsicHeight makes both cards in a row the same
