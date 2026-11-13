@@ -2,12 +2,57 @@ import 'package:project6/models/pantry_item.dart';
 import 'package:project6/models/recipe.dart';
 import 'package:project6/models/shopping_item.dart';
 
+// ---------------------------------------------------------------------------
+// Basic unit conversion
+// ---------------------------------------------------------------------------
+// Units convert only inside their own family: mass (g, kg, lbs), volume (ml,
+// l, tsp, tbsp, cup, fl oz) and count. Mass never converts to volume (no densities),
+// and an unknown unit only matches itself.
+
+const Map<String, double> _massToG = {'g': 1, 'kg': 1000, 'lbs': 453.592};
+const Map<String, double> _volumeToMl = {
+  'ml': 1,
+  'l': 1000,
+  'tsp': 4.92892,
+  'tbsp': 14.7868,
+  'cup': 236.588,
+  'fl oz': 29.5735,
+};
+
+/// "mass", "volume", or the unit itself when it has no conversions.
+String unitFamily(String unit) {
+  if (_massToG.containsKey(unit)) return 'mass';
+  if (_volumeToMl.containsKey(unit)) return 'volume';
+  return unit;
+}
+
+/// [qty] expressed in the family's base unit (g or ml; others unchanged).
+double toBaseQty(double qty, String unit) =>
+    qty * (_massToG[unit] ?? _volumeToMl[unit] ?? 1);
+
+/// Inverse of [toBaseQty].
+double fromBaseQty(double base, String unit) =>
+    base / (_massToG[unit] ?? _volumeToMl[unit] ?? 1);
+
+/// Pantry totals in base units, keyed "name|family". Expired items skipped.
+Map<String, double> _pantryBase(List<PantryItem> pantryItems, DateTime? now) {
+  final out = <String, double>{};
+  for (final p in pantryItems) {
+    if (p.isExpired(now)) continue; // expired food can't cover a recipe
+    final key = '${p.name.trim().toLowerCase()}|${unitFamily(p.unit)}';
+    out[key] = (out[key] ?? 0) + toBaseQty(p.qty, p.unit);
+  }
+  return out;
+}
+
 /// Builds the shopping list for the week.
 ///
 /// [planRecipes] has one entry per assigned plan slot, so a recipe planned
 /// twice appears twice and its ingredients count twice.
 ///
 /// Expired pantry items are ignored, so they never reduce what you need to buy.
+/// Pantry amounts convert within a unit family, so 4 l of soy sauce covers a
+/// recipe that asks for 2 tbsp.
 List<ShoppingItem> generateShoppingList(
     List<Recipe> planRecipes,
     List<PantryItem> pantryItems, {
@@ -31,19 +76,22 @@ List<ShoppingItem> generateShoppingList(
     }
   }
 
-  // Step 4: subtract pantry. Exact name + exact unit only, no conversion.
-  final pantryQty = <String, double>{};
-  for (final p in pantryItems) {
-    if (p.isExpired(now)) continue; // expired food can't cover a recipe
-    final key = '${p.name.trim().toLowerCase()}|${p.unit}';
-    pantryQty[key] = (pantryQty[key] ?? 0) + p.qty;
-  }
+  // Step 4: subtract pantry. Same name; units convert within a family, and
+  // each pantry amount is used up once (two recipe lines for the same food in
+  // different units can't both spend the same bottle).
+  final pantry = _pantryBase(pantryItems, now);
 
   final result = <ShoppingItem>[];
   for (final item in grouped.values) {
-    final remaining = item.qty - (pantryQty[item.id] ?? 0);
-    if (remaining <= 0.0001) continue; // fully covered by the pantry
-    item.qty = _round(remaining);
+    final key = '${item.name}|${unitFamily(item.unit)}';
+    final needBase = toBaseQty(item.qty, item.unit);
+    final owned = pantry[key] ?? 0;
+    final used = owned < needBase ? owned : needBase;
+    pantry[key] = owned - used;
+    final remainingBase = needBase - used;
+    if (remainingBase <= 0.001) continue; // fully covered by the pantry
+    item.qty = _round(fromBaseQty(remainingBase, item.unit));
+    if (item.qty <= 0) continue;
     result.add(item);
   }
 
@@ -73,11 +121,12 @@ List<DateTime> currentWeekRange([DateTime? now]) {
 class RecipeMatch {
   final Recipe recipe;
 
-  /// Ingredients fully covered: same name, same unit, enough quantity.
+  /// Ingredients fully covered: same name and enough quantity (units convert
+  /// within a family, e.g. 4 l covers 2 tbsp).
   final int have;
 
   /// Ingredients where the pantry has the name, but not enough of it, or it
-  /// is stored in a different unit (units are never converted).
+  /// is stored in a unit that can't convert (e.g. grams vs. count).
   final int low;
 
   /// Total ingredients in the recipe.
@@ -103,22 +152,19 @@ class RecipeMatch {
 
 /// Scores every recipe against the pantry, best match first.
 ///
-/// Uses the same rules as [generateShoppingList]: exact name, exact unit, no
-/// fuzzy matching and no unit conversion, and expired pantry items are
+/// Uses the same rules as [generateShoppingList]: exact name, no fuzzy
+/// matching, units converted within a family, and expired pantry items
 /// ignored. Ties are broken by fewer missing ingredients, then by recipe name.
 List<RecipeMatch> rankRecipesByPantry(
   List<Recipe> recipes,
   List<PantryItem> pantryItems, {
   DateTime? now, // only tests pass this, to pin "today"
 }) {
-  final pantryQty = <String, double>{}; // "name|unit" -> total quantity
+  final pantry = _pantryBase(pantryItems, now); // "name|family" -> base qty
   final pantryNames = <String>{};
   for (final p in pantryItems) {
     if (p.isExpired(now)) continue; // expired food is not "available"
-    final name = p.name.trim().toLowerCase();
-    pantryNames.add(name);
-    final key = '$name|${p.unit}';
-    pantryQty[key] = (pantryQty[key] ?? 0) + p.qty;
+    pantryNames.add(p.name.trim().toLowerCase());
   }
 
   final matches = <RecipeMatch>[];
@@ -128,8 +174,8 @@ List<RecipeMatch> rankRecipesByPantry(
     final missing = <String>[];
     for (final ing in recipe.ingredients) {
       final name = ing.name.trim().toLowerCase();
-      final owned = pantryQty['$name|${ing.unit}'] ?? 0;
-      if (owned >= ing.qty - 0.0001) {
+      final owned = pantry['$name|${unitFamily(ing.unit)}'] ?? 0;
+      if (owned >= toBaseQty(ing.qty, ing.unit) - 0.001) {
         have++;
       } else if (pantryNames.contains(name)) {
         low++;
