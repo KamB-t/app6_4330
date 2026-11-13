@@ -128,6 +128,21 @@ class FirestoreService {
   Future<void> setShoppingItemChecked(String id, bool checked) =>
       _shopping.doc(id).update({'checked': checked});
 
+  /// Adds [items] to the pantry and removes the bought items from the
+  /// shopping list, all in one batch so it either fully happens or not at all.
+  Future<void> markBought(List<PantryItem> items, List<String> shoppingIds) async {
+    final batch = _db.batch();
+    for (final item in items) {
+      final doc = _pantry.doc();
+      item.id = doc.id;
+      batch.set(doc, item.toMap());
+    }
+    for (final id in shoppingIds) {
+      batch.delete(_shopping.doc(id));
+    }
+    await batch.commit();
+  }
+
   /// Reads the week's plan, the recipes, and the pantry, runs the pure
   /// calculation, and stores the result. Plan slots whose recipe was deleted
   /// are skipped.
