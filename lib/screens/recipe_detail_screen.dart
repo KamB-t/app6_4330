@@ -1,11 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:project6/models/recipe.dart';
+import 'package:project6/screens/add_recipe_screen.dart';
 import 'package:project6/services/firestore_service.dart';
 import 'package:project6/theme/app_theme.dart';
 
-class RecipeDetailScreen extends StatelessWidget {
+class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
   const RecipeDetailScreen({super.key, required this.recipe});
+
+  @override
+  State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+}
+
+class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
+  late Recipe recipe; // the version on screen; replaced after an edit
+
+  @override
+  void initState() {
+    super.initState();
+    recipe = widget.recipe;
+  }
+
+  void _edit() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddRecipeScreen(
+          initial: recipe,
+          onSave: (updated) async {
+            await FirestoreService.instance.updateRecipe(updated);
+            if (mounted) setState(() => recipe = updated);
+          },
+        ),
+      ),
+    );
+  }
 
   Future<void> _confirmDelete(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -38,7 +67,16 @@ class RecipeDetailScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Recipe')),
+      appBar: AppBar(
+        title: const Text('Recipe'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit recipe',
+            onPressed: _edit,
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
@@ -133,6 +171,15 @@ class RecipeDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _edit,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit recipe'),
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

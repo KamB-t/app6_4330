@@ -6,7 +6,10 @@ import 'package:project6/theme/app_theme.dart';
 class AddRecipeScreen extends StatefulWidget {
   /// Passed in by the caller so this screen can be widget-tested without Firebase.
   final Future<void> Function(Recipe recipe) onSave;
-  const AddRecipeScreen({super.key, required this.onSave});
+
+  /// When set, the screen edits this recipe instead of creating a new one.
+  final Recipe? initial;
+  const AddRecipeScreen({super.key, required this.onSave, this.initial});
 
   @override
   State<AddRecipeScreen> createState() => _AddRecipeScreenState();
@@ -18,9 +21,34 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
   final _calories = TextEditingController();
   final _tags = TextEditingController();
   final _instructions = TextEditingController();
-  final List<IngredientDraft> _drafts = [IngredientDraft()];
+  List<IngredientDraft> _drafts = [IngredientDraft()];
   String? _error;
   bool _saving = false;
+
+  bool get _editing => widget.initial != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final r = widget.initial;
+    if (r == null) return;
+    _name.text = r.name;
+    _prep.text = r.prepTimeMinutes > 0 ? '${r.prepTimeMinutes}' : '';
+    _calories.text = r.calories == null ? '' : '${r.calories}';
+    _tags.text = r.tags.join(', ');
+    _instructions.text = r.instructions;
+    for (final d in _drafts) {
+      d.dispose();
+    }
+    _drafts = [
+      for (final i in r.ingredients)
+        IngredientDraft()
+          ..name.text = i.name
+          ..qty.text = formatQty(i.qty)
+          ..unit = i.unit,
+    ];
+    if (_drafts.isEmpty) _drafts.add(IngredientDraft());
+  }
 
   @override
   void dispose() {
@@ -50,7 +78,13 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
       }
       ingredients.add(Ingredient(name: d.name.text, qty: qty, unit: d.unit));
     }
+    final old = widget.initial;
     final recipe = Recipe(
+      // Editing keeps the recipe's identity, favorite flag, date and photo.
+      id: old?.id ?? '',
+      isFavorite: old?.isFavorite ?? false,
+      createdAt: old?.createdAt,
+      imageUrl: old?.imageUrl,
       name: _name.text.trim(),
       ingredients: ingredients,
       instructions: _instructions.text.trim(),
@@ -75,8 +109,8 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
     const fieldStyle = TextStyle(fontSize: 17);
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Add recipe',
+        title: Text(
+          _editing ? 'Edit recipe' : 'Add recipe',
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
         ),
       ),

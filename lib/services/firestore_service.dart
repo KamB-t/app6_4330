@@ -37,6 +37,19 @@ class FirestoreService {
     await doc.set(recipe.toMap());
   }
 
+  /// Saves changes to an existing recipe. Meal plan slots that use it show the
+  /// recipe's name, so their stored copy of the name is updated too.
+  Future<void> updateRecipe(Recipe recipe) async {
+    final batch = _db.batch();
+    batch.set(_recipes.doc(recipe.id), recipe.toMap());
+    final slots =
+        await _mealPlans.where('recipeId', isEqualTo: recipe.id).get();
+    for (final d in slots.docs) {
+      batch.update(d.reference, {'recipeName': recipe.name});
+    }
+    await batch.commit();
+  }
+
   Future<void> deleteRecipe(String id) => _recipes.doc(id).delete();
 
   // ---------- Meal plan ----------
