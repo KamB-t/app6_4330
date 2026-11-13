@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-const kUnits = ['g', 'kg', 'ml', 'l', 'count', 'tbsp', 'tsp', 'cup'];
+const kUnits = ['g', 'kg', 'lbs', 'ml', 'l', 'count', 'tbsp', 'tsp', 'cup'];
 
 /// Holds the text fields for one ingredient row in the form.
 class IngredientDraft {

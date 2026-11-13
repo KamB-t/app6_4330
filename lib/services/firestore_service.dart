@@ -33,4 +33,100 @@ class FirestoreService {
   }
 
   Future<void> deleteRecipe(String id) => _recipes.doc(id).delete();
+
+  // ---------- Seed data ----------
+
+  /// Writes the 5 starter recipes if this user has no recipes yet.
+  /// Fixed document ids make it safe to run twice (it overwrites, never duplicates).
+  Future<void> seedStarterRecipesIfEmpty() async {
+    final existing = await _recipes.limit(1).get();
+    if (existing.docs.isNotEmpty) return;
+
+    final batch = _db.batch(); // all 5 writes succeed or fail together
+    _starterRecipes().forEach((id, recipe) {
+      batch.set(_recipes.doc(id), recipe.toMap());
+    });
+    await batch.commit();
+  }
+
+  Map<String, Recipe> _starterRecipes() {
+    final now = DateTime.now();
+    DateTime t(int i) => now.add(Duration(milliseconds: i)); // keeps list order
+    return {
+      'starter_spaghetti': Recipe(
+        name: 'Spaghetti',
+        prepTimeMinutes: 25,
+        tags: ['dinner'],
+        ingredients: [
+          Ingredient(name: 'pasta', qty: 200, unit: 'g'),
+          Ingredient(name: 'pasta sauce', qty: 300, unit: 'ml'),
+          Ingredient(name: 'ground beef', qty: 300, unit: 'g'),
+          Ingredient(name: 'onion', qty: 1, unit: 'count'),
+          Ingredient(name: 'garlic', qty: 2, unit: 'count'),
+        ],
+        instructions:
+        'Boil pasta in salted water. Brown the ground beef with chopped onion and garlic. Add pasta sauce and simmer 10 minutes. Drain pasta and combine.',
+        createdAt: t(0),
+      ),
+      'starter_tacos': Recipe(
+        name: 'Tacos',
+        prepTimeMinutes: 20,
+        tags: ['dinner', 'quick'],
+        ingredients: [
+          Ingredient(name: 'ground beef', qty: 500, unit: 'g'),
+          Ingredient(name: 'tortillas', qty: 8, unit: 'count'),
+          Ingredient(name: 'shredded cheese', qty: 100, unit: 'g'),
+          Ingredient(name: 'lettuce', qty: 100, unit: 'g'),
+          Ingredient(name: 'tomato', qty: 2, unit: 'count'),
+        ],
+        instructions:
+        'Brown the ground beef and season to taste. Warm the tortillas. Fill with beef, cheese, lettuce, and chopped tomato.',
+        createdAt: t(1),
+      ),
+      'starter_chicken_stir_fry': Recipe(
+        name: 'Chicken stir fry',
+        prepTimeMinutes: 30,
+        tags: ['dinner'],
+        ingredients: [
+          Ingredient(name: 'chicken breast', qty: 500, unit: 'g'),
+          Ingredient(name: 'rice', qty: 200, unit: 'g'),
+          Ingredient(name: 'bell pepper', qty: 2, unit: 'count'),
+          Ingredient(name: 'soy sauce', qty: 3, unit: 'tbsp'),
+          Ingredient(name: 'garlic', qty: 2, unit: 'count'),
+        ],
+        instructions:
+        'Cook the rice. Slice chicken and peppers. Stir fry chicken until cooked, add peppers and garlic, then soy sauce. Serve over rice.',
+        createdAt: t(2),
+      ),
+      'starter_pancakes': Recipe(
+        name: 'Pancakes',
+        prepTimeMinutes: 15,
+        tags: ['breakfast', 'quick'],
+        ingredients: [
+          Ingredient(name: 'flour', qty: 250, unit: 'g'),
+          Ingredient(name: 'milk', qty: 300, unit: 'ml'),
+          Ingredient(name: 'egg', qty: 2, unit: 'count'),
+          Ingredient(name: 'sugar', qty: 2, unit: 'tbsp'),
+          Ingredient(name: 'butter', qty: 30, unit: 'g'),
+        ],
+        instructions:
+        'Mix flour, sugar, milk, and eggs into a batter. Fry small ladles of batter in butter until golden on both sides.',
+        createdAt: t(3),
+      ),
+      'starter_garden_salad': Recipe(
+        name: 'Garden salad',
+        prepTimeMinutes: 10,
+        tags: ['lunch', 'quick', 'vegetarian'],
+        ingredients: [
+          Ingredient(name: 'lettuce', qty: 200, unit: 'g'),
+          Ingredient(name: 'tomato', qty: 2, unit: 'count'),
+          Ingredient(name: 'cucumber', qty: 1, unit: 'count'),
+          Ingredient(name: 'olive oil', qty: 2, unit: 'tbsp'),
+        ],
+        instructions:
+        'Chop the lettuce, tomato, and cucumber. Toss together and dress with olive oil.',
+        createdAt: t(4),
+      ),
+    };
+  }
 }
