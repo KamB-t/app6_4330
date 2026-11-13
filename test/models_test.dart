@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:project6/models/meal_plan.dart';
 import 'package:project6/models/recipe.dart';
 
 void main() {
@@ -19,15 +18,5 @@ void main() {
     expect(back.ingredients[0].name, 'ground beef');
     expect(back.ingredients[0].qty, 500);
     expect(back.ingredients[0].unit, 'g');
-  });
-
-  test('MealPlan id matches yyyy-MM-dd_meal', () {
-    final p = MealPlan(
-      date: DateTime(2026, 11, 16),
-      meal: 'dinner',
-      recipeId: 'r1',
-      recipeName: 'Tacos',
-    );
-    expect(p.id, '2026-11-16_dinner');
   });
 }

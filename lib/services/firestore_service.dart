@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:project6/models/recipe.dart';
 import 'package:flutter/foundation.dart';
-import 'package:project6/models/meal_plan.dart';
 import 'package:project6/models/pantry_item.dart';
 import 'package:project6/models/shopping_item.dart';
 import 'package:project6/services/shopping_list_service.dart';
@@ -37,37 +36,38 @@ class FirestoreService {
     await doc.set(recipe.toMap());
   }
 
+  /// Saves changes to an existing recipe.
+  Future<void> updateRecipe(Recipe recipe) =>
+      _recipes.doc(recipe.id).set(recipe.toMap());
+
+  /// Starts a recipe: subtracts its ingredients from the pantry (items used up
+  /// are deleted) and marks it in progress, in one batch. Returns the names of
+  /// ingredients the pantry couldn't fully cover.
+  Future<List<String>> startRecipe(Recipe recipe) async {
+    final snap = await _pantry.get();
+    final pantry = snap.docs
+        .map((d) => PantryItem.fromMap(d.data(), id: d.id))
+        .toList();
+    final result = deductFromPantry(recipe.ingredients, pantry);
+
+    final batch = _db.batch();
+    result.newQty.forEach((id, qty) {
+      if (qty <= 0) {
+        batch.delete(_pantry.doc(id));
+      } else {
+        batch.update(_pantry.doc(id), {'qty': qty});
+      }
+    });
+    batch.update(_recipes.doc(recipe.id), {'inProgress': true});
+    await batch.commit();
+    return result.shortfall;
+  }
+
+  /// Marks a started recipe completed. The pantry is not changed.
+  Future<void> completeRecipe(String id) =>
+      _recipes.doc(id).update({'inProgress': false});
+
   Future<void> deleteRecipe(String id) => _recipes.doc(id).delete();
-
-  // ---------- Meal plan ----------
-
-  CollectionReference<Map<String, dynamic>> get _mealPlans =>
-      _db.collection('users').doc(_uid).collection('mealPlans');
-
-  /// All plan slots whose date falls between weekStart and weekEnd (inclusive).
-  Stream<List<MealPlan>> streamMealPlans(DateTime weekStart, DateTime weekEnd) {
-    return _mealPlans
-        .where('date', isGreaterThanOrEqualTo: weekStart.millisecondsSinceEpoch)
-        .where('date', isLessThanOrEqualTo: weekEnd.millisecondsSinceEpoch)
-        .snapshots()
-        .map((snap) =>
-        snap.docs.map((d) => MealPlan.fromMap(d.data())).toList());
-  }
-
-  /// One document per slot, id "yyyy-MM-dd_meal", so set() also replaces an
-  /// occupied slot.
-  Future<void> assignRecipe(DateTime date, String meal, Recipe recipe) {
-    final plan = MealPlan(
-      date: date,
-      meal: meal,
-      recipeId: recipe.id,
-      recipeName: recipe.name,
-    );
-    return _mealPlans.doc(plan.id).set(plan.toMap());
-  }
-
-  Future<void> clearSlot(DateTime date, String meal) =>
-      _mealPlans.doc(MealPlan.buildId(date, meal)).delete();
 
   // ---------- Pantry ----------
 
@@ -128,32 +128,65 @@ class FirestoreService {
   Future<void> setShoppingItemChecked(String id, bool checked) =>
       _shopping.doc(id).update({'checked': checked});
 
-  /// Reads the week's plan, the recipes, and the pantry, runs the pure
-  /// calculation, and stores the result. Plan slots whose recipe was deleted
-  /// are skipped.
-  Future<void> regenerateShoppingList(DateTime weekStart, DateTime weekEnd) async {
-    final planSnap = await _mealPlans
-        .where('date', isGreaterThanOrEqualTo: weekStart.millisecondsSinceEpoch)
-        .where('date', isLessThanOrEqualTo: weekEnd.millisecondsSinceEpoch)
-        .get();
-    final plans = planSnap.docs.map((d) => MealPlan.fromMap(d.data())).toList();
+  /// Adds [items] to the pantry, removes fully bought items from the shopping
+  /// list, and for partly bought items lowers the quantity to what is still
+  /// needed (and unchecks them). One batch: all of it happens or none of it.
+  Future<void> markBought(
+    List<PantryItem> items,
+    List<String> removeIds,
+    Map<String, double> remaining,
+  ) async {
+    final batch = _db.batch();
+    for (final item in items) {
+      final doc = _pantry.doc();
+      item.id = doc.id;
+      batch.set(doc, item.toMap());
+    }
+    for (final id in removeIds) {
+      batch.delete(_shopping.doc(id));
+    }
+    remaining.forEach((id, qty) {
+      batch.update(_shopping.doc(id), {'qty': qty, 'checked': false});
+    });
+    await batch.commit();
+  }
 
-    final recipeSnap = await _recipes.get();
-    final recipesById = {
-      for (final d in recipeSnap.docs) d.id: Recipe.fromMap(d.data(), id: d.id)
-    };
-
-    final planRecipes = <Recipe>[
-      for (final p in plans)
-        if (recipesById[p.recipeId] != null) recipesById[p.recipeId]!,
-    ];
-
+  /// Works out which of [recipe]'s ingredients the pantry doesn't cover (same
+  /// calculation as before: unit conversion, expired items ignored) and adds
+  /// them to the shopping list. Existing list items are kept. If an item with
+  /// the same name and unit is already on the list, the quantities are added
+  /// together, the recipe name is appended, and the item is unchecked (its
+  /// quantity changed). Returns how many items were added or updated; 0 means
+  /// the pantry already covers the recipe.
+  Future<int> addMissingToShoppingList(Recipe recipe) async {
     final pantrySnap = await _pantry.get();
     final pantry = pantrySnap.docs
         .map((d) => PantryItem.fromMap(d.data(), id: d.id))
         .toList();
+    final missing = generateShoppingList([recipe], pantry);
+    if (missing.isEmpty) return 0;
 
-    await saveShoppingList(generateShoppingList(planRecipes, pantry));
+    final existing = await _shopping.get();
+    final existingById = {
+      for (final d in existing.docs) d.id: ShoppingItem.fromMap(d.data())
+    };
+
+    final batch = _db.batch();
+    for (final item in missing) {
+      final old = existingById[item.id];
+      if (old != null) {
+        item.qty = double.parse((old.qty + item.qty).toStringAsFixed(4));
+        item.fromRecipes = [
+          ...old.fromRecipes,
+          for (final r in item.fromRecipes)
+            if (!old.fromRecipes.contains(r)) r,
+        ];
+      }
+      item.checked = false;
+      batch.set(_shopping.doc(item.id), item.toMap());
+    }
+    await batch.commit();
+    return missing.length;
   }
 
   // ---------- Seed data ----------

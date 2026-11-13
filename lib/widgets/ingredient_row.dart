@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:project6/theme/app_theme.dart';
 
-const kUnits = ['g', 'kg', 'lbs', 'ml', 'l', 'count', 'tbsp', 'tsp', 'cup'];
+const kUnits = ['g', 'kg', 'lbs', 'ml', 'l', 'count', 'tbsp', 'tsp', 'cup', 'fl oz'];
 
 /// Holds the text fields for one ingredient row in the form.
 class IngredientDraft {
@@ -14,6 +15,7 @@ class IngredientDraft {
   }
 }
 
+/// One ingredient: name on its own full-width line, then quantity, unit, remove.
 class IngredientRow extends StatefulWidget {
   final IngredientDraft draft;
   final VoidCallback onRemove;
@@ -26,38 +28,71 @@ class IngredientRow extends StatefulWidget {
 class _IngredientRowState extends State<IngredientRow> {
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: TextField(
-            controller: widget.draft.name,
-            decoration: const InputDecoration(labelText: 'Ingredient'),
-          ),
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            TextField(
+              controller: widget.draft.name,
+              style: const TextStyle(fontSize: 17),
+              decoration: const InputDecoration(labelText: 'Ingredient'),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: widget.draft.qty,
+                    style: const TextStyle(fontSize: 17),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Qty'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Unit',
+                      contentPadding: EdgeInsets.fromLTRB(16, 6, 8, 6),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: widget.draft.unit,
+                        style: TextStyle(
+                          fontSize: 17,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        items: kUnits
+                            .map(
+                              (u) => DropdownMenuItem(value: u, child: Text(u)),
+                            )
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => widget.draft.unit = v!),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                  tooltip: 'Remove ingredient',
+                  onPressed: widget.onRemove,
+                ),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 70,
-          child: TextField(
-            controller: widget.draft.qty,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Qty'),
-          ),
-        ),
-        const SizedBox(width: 8),
-        DropdownButton<String>(
-          value: widget.draft.unit,
-          items: kUnits
-              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-              .toList(),
-          onChanged: (v) => setState(() => widget.draft.unit = v!),
-        ),
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline),
-          tooltip: 'Remove ingredient',
-          onPressed: widget.onRemove,
-        ),
-      ],
+      ),
     );
   }
 }
