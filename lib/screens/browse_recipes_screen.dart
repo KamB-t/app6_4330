@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:project6/models/pantry_item.dart';
 import 'package:project6/models/recipe.dart';
 import 'package:project6/screens/add_recipe_screen.dart';
 import 'package:project6/services/meal_api_service.dart';
+import 'package:project6/services/shopping_list_service.dart';
 import 'package:project6/theme/app_theme.dart';
+import 'package:project6/widgets/recipe_card.dart' show PantryMatchSection;
 
 /// Looks up recipes for [query]; an empty query means "show featured recipes".
-typedef RecipeSearchFn = Future<List<Recipe>> Function(String query);
+typedef RecipeSearchFn = Future<List<OnlineRecipe>> Function(String query);
 
 /// Opened by "Add recipe": a list of online recipes to add with one tap, with
 /// a button at the top to type in your own recipe instead.
@@ -16,7 +19,16 @@ class BrowseRecipesScreen extends StatefulWidget {
   /// Tests pass a fake; the app leaves this null and uses TheMealDB.
   final RecipeSearchFn? search;
 
-  const BrowseRecipesScreen({super.key, required this.onSave, this.search});
+  /// The user's pantry. When given, each recipe shows how much of it you
+  /// already have, and the best matches come first. Null hides that.
+  final Stream<List<PantryItem>>? pantryStream;
+
+  const BrowseRecipesScreen({
+    super.key,
+    required this.onSave,
+    this.search,
+    this.pantryStream,
+  });
 
   @override
   State<BrowseRecipesScreen> createState() => _BrowseRecipesScreenState();
@@ -26,7 +38,7 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
   final _controller = TextEditingController();
   final _api = MealApi();
   final Set<String> _added = {}; // recipe names added during this visit
-  List<Recipe> _results = [];
+  List<OnlineRecipe> _results = [];
   bool _loading = true;
   String? _error;
   String _shownQuery = '';
@@ -44,7 +56,7 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
     super.dispose();
   }
 
-  Future<List<Recipe>> _defaultSearch(String q) =>
+  Future<List<OnlineRecipe>> _defaultSearch(String q) =>
       q.isEmpty ? _api.featured() : _api.search(q);
 
   Future<void> _load(String rawQuery) async {
@@ -98,7 +110,35 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
     );
   }
 
-  void _preview(Recipe recipe) {
+  /// Photo for a recipe, or the tinted placeholder (also shown while loading
+  /// and if the picture can't be loaded).
+  Widget _photo(String? url, double height) {
+    final scheme = Theme.of(context).colorScheme;
+    final placeholder = Container(
+      height: height,
+      width: double.infinity,
+      color: scheme.primaryContainer,
+      alignment: Alignment.center,
+      child: Icon(Icons.restaurant_menu,
+          size: 44, color: scheme.onPrimaryContainer),
+    );
+    if (url == null) return placeholder;
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        cacheWidth: 900,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : placeholder,
+        errorBuilder: (context, error, stack) => placeholder,
+      ),
+    );
+  }
+
+  void _preview(OnlineRecipe online) {
+    final recipe = online.recipe;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -116,6 +156,10 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   children: [
+                    if (online.imageUrl != null) ...[
+                      _photo(online.imageUrl, 200),
+                      const SizedBox(height: 14),
+                    ],
                     Text(
                       recipe.name,
                       style: textTheme.titleLarge
@@ -171,50 +215,79 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
     );
   }
 
-  Widget _resultCard(Recipe r) {
+  /// Pairs each online recipe with how well the pantry covers it. With a
+  /// pantry, best matches come first; without one, the order is unchanged and
+  /// the match is null.
+  List<(OnlineRecipe, RecipeMatch?)> _withMatches(List<PantryItem> pantry) {
+    if (pantry.isEmpty) return [for (final r in _results) (r, null)];
+    final byRecipe = {for (final r in _results) r.recipe: r};
+    final ranked = rankRecipesByPantry(byRecipe.keys.toList(), pantry);
+    return [for (final m in ranked) (byRecipe[m.recipe]!, m)];
+  }
+
+  /// Same look as the recipe list's cards (square corners, header, name,
+  /// chips, tags), but one per row and larger, with the recipe's photo.
+  Widget _resultCard(OnlineRecipe online, RecipeMatch? match) {
+    final r = online.recipe;
+    final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final added = _added.contains(r.name);
+    final count = r.ingredients.length;
     return AppCard(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      onTap: () => _preview(r),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    r.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
+      radius: 0, // square corners, like the recipe list
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      onTap: () => _preview(online),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _photo(online.imageUrl, 190),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  r.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                if (match == null)
                   Wrap(
                     spacing: 8,
-                    runSpacing: 6,
+                    runSpacing: 8,
                     children: [
-                      for (final t in r.tags.take(2))
-                        InfoChip(label: capitalize(t)),
-                      InfoChip(label: '${r.ingredients.length} ingredients'),
+                      InfoChip(
+                        icon: Icons.shopping_basket_outlined,
+                        label: '$count item${count == 1 ? '' : 's'}',
+                      ),
                     ],
+                  )
+                else
+                  PantryMatchSection(match: match),
+                if (r.tags.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    r.tags.join(' · '),
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
-              ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: added ? null : () => _add(r),
+                    icon: Icon(added ? Icons.check : Icons.add),
+                    label: Text(added ? 'Added' : 'Add to my recipes'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 96,
-              child: ElevatedButton(
-                onPressed: added ? null : () => _add(r),
-                child: Text(added ? 'Added' : 'Add'),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -230,7 +303,14 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
         ),
       ),
-      body: ListView(
+      body: StreamBuilder<List<PantryItem>>(
+        stream: widget.pantryStream,
+        builder: (context, pantrySnap) {
+          // Expired food doesn't count as "in the pantry".
+          final pantry = (pantrySnap.data ?? const <PantryItem>[])
+              .where((p) => !p.isExpired())
+              .toList();
+          return ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
           AppCard(
@@ -315,8 +395,10 @@ class _BrowseRecipesScreenState extends State<BrowseRecipesScreen> {
               ),
             )
           else
-            for (final r in _results) _resultCard(r),
+            for (final r in _withMatches(pantry)) _resultCard(r.$1, r.$2),
         ],
+      );
+        },
       ),
     );
   }

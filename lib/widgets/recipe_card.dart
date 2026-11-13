@@ -29,6 +29,30 @@ class RecipeCard extends StatelessWidget {
     return Icons.restaurant_menu;
   }
 
+  /// The recipe's photo when it has one (and while it loads or fails, the
+  /// tinted icon header).
+  Widget _header(ColorScheme scheme) {
+    final iconHeader = Container(
+      height: recipe.imageUrl == null ? 76 : 110,
+      color: scheme.primaryContainer,
+      alignment: Alignment.center,
+      child: Icon(_icon, size: 38, color: scheme.onPrimaryContainer),
+    );
+    final url = recipe.imageUrl;
+    if (url == null) return iconHeader;
+    return SizedBox(
+      height: 110,
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        cacheWidth: 600,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : iconHeader,
+        errorBuilder: (context, error, stack) => iconHeader,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -41,12 +65,7 @@ class RecipeCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            height: 76,
-            color: scheme.primaryContainer,
-            alignment: Alignment.center,
-            child: Icon(_icon, size: 38, color: scheme.onPrimaryContainer),
-          ),
+          _header(scheme),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -78,7 +97,7 @@ class RecipeCard extends StatelessWidget {
                 ),
                 if (match != null) ...[
                   const SizedBox(height: 12),
-                  _pantrySection(context, match!),
+                  PantryMatchSection(match: match!),
                 ],
                 if (recipe.tags.isNotEmpty) ...[
                   const SizedBox(height: 10),
@@ -95,9 +114,17 @@ class RecipeCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  /// "Ready to cook" badge, or a progress bar + "You have 4 of 5" + what is missing.
-  Widget _pantrySection(BuildContext context, RecipeMatch m) {
+/// "Ready to cook" badge, or a progress bar + "You have 4 of 5" + what is
+/// missing. Shared by the recipe list and the online "Add recipe" list.
+class PantryMatchSection extends StatelessWidget {
+  final RecipeMatch match;
+  const PantryMatchSection({super.key, required this.match});
+
+  @override
+  Widget build(BuildContext context) {
+    final m = match;
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 

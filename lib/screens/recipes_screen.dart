@@ -35,7 +35,10 @@ class _RecipesScreenState extends State<RecipesScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BrowseRecipesScreen(onSave: _service.addRecipe),
+        builder: (_) => BrowseRecipesScreen(
+          onSave: _service.addRecipe,
+          pantryStream: _service.streamPantry(),
+        ),
       ),
     );
   }

@@ -42,6 +42,19 @@ class RecipeDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
+          if (recipe.imageUrl != null) ...[
+            SizedBox(
+              height: 220,
+              child: Image.network(
+                recipe.imageUrl!,
+                fit: BoxFit.cover,
+                cacheWidth: 1000,
+                errorBuilder: (context, error, stack) =>
+                    const SizedBox.shrink(),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(

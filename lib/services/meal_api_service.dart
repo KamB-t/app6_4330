@@ -11,6 +11,14 @@ import 'package:project6/models/recipe.dart';
 // ("1/2 cup", "500g", "3 cloves"), so [parseMeasure] turns them into the
 // quantity + unit the rest of the app understands.
 
+/// A recipe from the API. [imageUrl] is the same link stored on the recipe,
+/// kept here for convenience.
+class OnlineRecipe {
+  final Recipe recipe;
+  final String? imageUrl;
+  const OnlineRecipe(this.recipe, this.imageUrl);
+}
+
 class MealApi {
   static const _base = 'https://www.themealdb.com/api/json/v1/1';
 
@@ -25,23 +33,24 @@ class MealApi {
   ];
 
   /// Recipes whose name matches [query].
-  Future<List<Recipe>> search(String query) async {
+  Future<List<OnlineRecipe>> search(String query) async {
     final uri = Uri.parse('$_base/search.php')
         .replace(queryParameters: {'s': query.trim()});
     final json = await _getJson(uri);
     final meals = json['meals'];
     if (meals is! List) return []; // the API sends null when nothing matches
-    final out = <Recipe>[];
+    final out = <OnlineRecipe>[];
     for (final m in meals) {
       if (m is! Map<String, dynamic>) continue;
       final r = mealToRecipe(m);
-      if (r != null) out.add(r);
+      if (r == null) continue;
+      out.add(OnlineRecipe(r, r.imageUrl));
     }
     return out;
   }
 
   /// A mixed starter list (a few recipes per popular search, no duplicates).
-  Future<List<Recipe>> featured() async {
+  Future<List<OnlineRecipe>> featured() async {
     Object? firstError;
     var failures = 0;
     final lists = await Future.wait(featuredQueries.map((q) async {
@@ -50,7 +59,7 @@ class MealApi {
       } catch (e) {
         failures++;
         firstError ??= e;
-        return <Recipe>[];
+        return <OnlineRecipe>[];
       }
     }));
     if (failures == featuredQueries.length) throw firstError!;
@@ -59,7 +68,7 @@ class MealApi {
     return [
       for (final list in lists)
         for (final r in list)
-          if (seen.add(r.name.toLowerCase())) r,
+          if (seen.add(r.recipe.name.toLowerCase())) r,
     ];
   }
 
@@ -97,6 +106,8 @@ Recipe? mealToRecipe(Map<String, dynamic> m) {
   }
   if (ingredients.isEmpty) return null;
 
+  final image = (m['strMealThumb'] ?? '').toString().trim();
+
   final tags = <String>[];
   void addTag(Object? v) {
     final t = (v ?? '').toString().trim().toLowerCase();
@@ -114,6 +125,7 @@ Recipe? mealToRecipe(Map<String, dynamic> m) {
     ingredients: ingredients,
     instructions: (m['strInstructions'] ?? '').toString().trim(),
     tags: tags,
+    imageUrl: image.isEmpty ? null : image,
   );
 }
 

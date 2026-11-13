@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:project6/models/recipe.dart';
 import 'package:project6/services/meal_api_service.dart';
 
 void main() {
@@ -55,6 +56,7 @@ void main() {
         'strArea': 'Italian',
         'strTags': 'Quick,Easy',
         'strInstructions': 'Cook it.',
+        'strMealThumb': 'https://example.com/chicken.jpg',
         'strIngredient1': 'Chicken Breast',
         'strMeasure1': '500g',
         'strIngredient2': 'Garlic',
@@ -72,6 +74,8 @@ void main() {
       expect(r.ingredients[1].unit, 'count');
       expect(r.tags, ['chicken', 'italian', 'quick', 'easy']);
       expect(r.instructions, 'Cook it.');
+      expect(r.imageUrl, 'https://example.com/chicken.jpg');
+      expect(Recipe.fromMap(r.toMap()).imageUrl, r.imageUrl);
     });
 
     test('returns null without a name or ingredients', () {
