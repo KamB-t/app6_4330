@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -72,7 +73,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   : 'No account? Create one'),
             ),
             if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.red)),
+              Text(_error!, style: const TextStyle(color: AppColors.oxblood)),
           ],
         ),
       ),

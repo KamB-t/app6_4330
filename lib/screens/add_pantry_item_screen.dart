@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:project6/models/pantry_item.dart';
 import 'package:project6/widgets/ingredient_row.dart' show kUnits;
+import 'package:project6/theme/app_theme.dart';
 
 class AddPantryItemScreen extends StatefulWidget {
   final Future<void> Function(PantryItem item) onSave;
@@ -58,61 +59,96 @@ class _AddPantryItemScreenState extends State<AddPantryItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const fieldStyle = TextStyle(fontSize: 17);
     return Scaffold(
-      appBar: AppBar(title: const Text('Add pantry item')),
+      appBar: AppBar(
+        title: const Text(
+          'Add pantry item',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
           TextField(
             controller: _name,
-            decoration: const InputDecoration(labelText: 'Name'),
+            style: fieldStyle,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              hintText: 'e.g. Ground beef',
+            ),
           ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
+                flex: 3,
                 child: TextField(
                   controller: _qty,
+                  style: fieldStyle,
                   keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Quantity'),
                 ),
               ),
-              const SizedBox(width: 16),
-              DropdownButton<String>(
-                value: _unit,
-                items: kUnits
-                    .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                    .toList(),
-                onChanged: (v) => setState(() => _unit = v!),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(_expiry == null
-                    ? 'No expiry date'
-                    : 'Expires ${DateFormat('yyyy-MM-dd').format(_expiry!)}'),
-              ),
-              TextButton(
-                onPressed: _pickDate,
-                child: const Text('Pick expiry date'),
-              ),
-              if (_expiry != null)
-                IconButton(
-                  icon: const Icon(Icons.clear),
-                  tooltip: 'Remove expiry date',
-                  onPressed: () => setState(() => _expiry = null),
+                flex: 2,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Unit',
+                    contentPadding: EdgeInsets.fromLTRB(16, 6, 8, 6),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _unit,
+                      style: TextStyle(fontSize: 17, color: scheme.onSurface),
+                      items: kUnits
+                          .map(
+                            (u) => DropdownMenuItem(value: u, child: Text(u)),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => _unit = v!),
+                    ),
+                  ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          if (_error != null)
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('Save'),
+          const SizedBox(height: 14),
+          AppCard(
+            margin: EdgeInsets.zero,
+            onTap: _pickDate,
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: const Icon(Icons.event),
+              title: Text(
+                _expiry == null
+                    ? 'Expiry date (optional)'
+                    : 'Expires ${DateFormat('yyyy-MM-dd').format(_expiry!)}',
+                style: fieldStyle,
+              ),
+              trailing: _expiry == null
+                  ? const Icon(Icons.chevron_right)
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Remove expiry date',
+                      onPressed: () => setState(() => _expiry = null),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 26),
+          if (_error != null) ErrorBanner(_error!),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              child: const Text('Save'),
+            ),
           ),
         ],
       ),

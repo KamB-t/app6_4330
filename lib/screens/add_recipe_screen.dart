@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project6/models/recipe.dart';
 import 'package:project6/widgets/ingredient_row.dart';
+import 'package:project6/theme/app_theme.dart';
 
 class AddRecipeScreen extends StatefulWidget {
   /// Passed in by the caller so this screen can be widget-tested without Firebase.
@@ -44,7 +45,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
       final qty = double.tryParse(d.qty.text.trim());
       if (d.name.text.trim().isEmpty || qty == null || qty <= 0) {
         setState(() => _error =
-        'Every ingredient needs a name and a quantity greater than 0.');
+            'Every ingredient needs a name and a quantity greater than 0.');
         return;
       }
       ingredients.add(Ingredient(name: d.name.text, qty: qty, unit: d.unit));
@@ -71,34 +72,52 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const fieldStyle = TextStyle(fontSize: 17);
     return Scaffold(
-      appBar: AppBar(title: const Text('Add recipe')),
+      appBar: AppBar(
+        title: const Text(
+          'Add recipe',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
           TextField(
             controller: _name,
-            decoration: const InputDecoration(labelText: 'Name'),
+            style: fieldStyle,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              hintText: 'e.g. Chicken stir fry',
+            ),
           ),
+          const SizedBox(height: 14),
           TextField(
             controller: _prep,
+            style: fieldStyle,
             keyboardType: TextInputType.number,
-            decoration:
-            const InputDecoration(labelText: 'Prep time (minutes, optional)'),
+            decoration: const InputDecoration(
+              labelText: 'Prep time in minutes (optional)',
+            ),
           ),
+          const SizedBox(height: 14),
           TextField(
             controller: _calories,
+            style: fieldStyle,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'Calories (optional)'),
           ),
+          const SizedBox(height: 14),
           TextField(
             controller: _tags,
+            style: fieldStyle,
             decoration: const InputDecoration(
-                labelText: 'Tags (comma-separated, optional)'),
+              labelText: 'Tags (optional)',
+              hintText: 'comma-separated, e.g. quick, vegetarian',
+            ),
           ),
-          const SizedBox(height: 16),
-          const Text('Ingredients',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          const SectionTitle('Ingredients'),
           for (final d in _drafts)
             IngredientRow(
               key: ObjectKey(d),
@@ -110,23 +129,40 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
                 }
               }),
             ),
-          TextButton.icon(
-            onPressed: () => setState(() => _drafts.add(IngredientDraft())),
-            icon: const Icon(Icons.add),
-            label: const Text('Add ingredient'),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(64, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () => setState(() => _drafts.add(IngredientDraft())),
+              icon: const Icon(Icons.add),
+              label: const Text('Add ingredient'),
+            ),
           ),
+          const SectionTitle('Instructions'),
           TextField(
             controller: _instructions,
+            style: fieldStyle,
             maxLines: null,
-            minLines: 3,
-            decoration: const InputDecoration(labelText: 'Instructions'),
+            minLines: 4,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Instructions',
+              hintText: 'Steps to make it',
+            ),
           ),
-          const SizedBox(height: 16),
-          if (_error != null)
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-          ElevatedButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('Save'),
+          const SizedBox(height: 22),
+          if (_error != null) ErrorBanner(_error!),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              child: const Text('Save'),
+            ),
           ),
         ],
       ),
