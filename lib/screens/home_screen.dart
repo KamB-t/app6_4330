@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project6/screens/recipes_screen.dart';
+import 'package:project6/services/firestore_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,7 +12,14 @@ class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
   static const _titles = ['Recipes', 'Plan', 'Shopping', 'Pantry'];
-
+  @override
+  void initState() {
+    super.initState();
+    FirestoreService.instance.seedStarterRecipesIfEmpty().then((_) {
+    }).catchError((Object e, StackTrace st) {
+      debugPrint('Seeding failed: $e\n$st');
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(

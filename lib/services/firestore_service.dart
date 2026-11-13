@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:project6/models/recipe.dart';
+import 'package:flutter/foundation.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -39,14 +40,12 @@ class FirestoreService {
   /// Writes the 5 starter recipes if this user has no recipes yet.
   /// Fixed document ids make it safe to run twice (it overwrites, never duplicates).
   Future<void> seedStarterRecipesIfEmpty() async {
-    final existing = await _recipes.limit(1).get();
-    if (existing.docs.isNotEmpty) return;
-
-    final batch = _db.batch(); // all 5 writes succeed or fail together
+    final batch = _db.batch();
     _starterRecipes().forEach((id, recipe) {
       batch.set(_recipes.doc(id), recipe.toMap());
     });
     await batch.commit();
+    debugPrint('Seeded starter recipes');
   }
 
   Map<String, Recipe> _starterRecipes() {
@@ -58,9 +57,9 @@ class FirestoreService {
         prepTimeMinutes: 25,
         tags: ['dinner'],
         ingredients: [
-          Ingredient(name: 'pasta', qty: 200, unit: 'g'),
+          Ingredient(name: 'pasta', qty: 0.5, unit: 'lbs'),
           Ingredient(name: 'pasta sauce', qty: 300, unit: 'ml'),
-          Ingredient(name: 'ground beef', qty: 300, unit: 'g'),
+          Ingredient(name: 'ground beef', qty: 0.5, unit: 'lbs'),
           Ingredient(name: 'onion', qty: 1, unit: 'count'),
           Ingredient(name: 'garlic', qty: 2, unit: 'count'),
         ],
@@ -73,9 +72,9 @@ class FirestoreService {
         prepTimeMinutes: 20,
         tags: ['dinner', 'quick'],
         ingredients: [
-          Ingredient(name: 'ground beef', qty: 500, unit: 'g'),
+          Ingredient(name: 'ground beef', qty: 1, unit: 'lbs'),
           Ingredient(name: 'tortillas', qty: 8, unit: 'count'),
-          Ingredient(name: 'shredded cheese', qty: 100, unit: 'g'),
+          Ingredient(name: 'shredded cheese', qty: 0.25, unit: 'lbs'),
           Ingredient(name: 'lettuce', qty: 100, unit: 'g'),
           Ingredient(name: 'tomato', qty: 2, unit: 'count'),
         ],
@@ -88,8 +87,8 @@ class FirestoreService {
         prepTimeMinutes: 30,
         tags: ['dinner'],
         ingredients: [
-          Ingredient(name: 'chicken breast', qty: 500, unit: 'g'),
-          Ingredient(name: 'rice', qty: 200, unit: 'g'),
+          Ingredient(name: 'chicken breast', qty: 1, unit: 'lbs'),
+          Ingredient(name: 'rice', qty: 0.5, unit: 'lbs'),
           Ingredient(name: 'bell pepper', qty: 2, unit: 'count'),
           Ingredient(name: 'soy sauce', qty: 3, unit: 'tbsp'),
           Ingredient(name: 'garlic', qty: 2, unit: 'count'),
