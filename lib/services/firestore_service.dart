@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:project6/models/recipe.dart';
 import 'package:flutter/foundation.dart';
+import 'package:project6/models/meal_plan.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -34,6 +35,36 @@ class FirestoreService {
   }
 
   Future<void> deleteRecipe(String id) => _recipes.doc(id).delete();
+
+  // ---------- Meal plan ----------
+
+  CollectionReference<Map<String, dynamic>> get _mealPlans =>
+      _db.collection('users').doc(_uid).collection('mealPlans');
+
+  /// All plan slots whose date falls between weekStart and weekEnd (inclusive).
+  Stream<List<MealPlan>> streamMealPlans(DateTime weekStart, DateTime weekEnd) {
+    return _mealPlans
+        .where('date', isGreaterThanOrEqualTo: weekStart.millisecondsSinceEpoch)
+        .where('date', isLessThanOrEqualTo: weekEnd.millisecondsSinceEpoch)
+        .snapshots()
+        .map((snap) =>
+        snap.docs.map((d) => MealPlan.fromMap(d.data())).toList());
+  }
+
+  /// One document per slot, id "yyyy-MM-dd_meal", so set() also replaces an
+  /// occupied slot.
+  Future<void> assignRecipe(DateTime date, String meal, Recipe recipe) {
+    final plan = MealPlan(
+      date: date,
+      meal: meal,
+      recipeId: recipe.id,
+      recipeName: recipe.name,
+    );
+    return _mealPlans.doc(plan.id).set(plan.toMap());
+  }
+
+  Future<void> clearSlot(DateTime date, String meal) =>
+      _mealPlans.doc(MealPlan.buildId(date, meal)).delete();
 
   // ---------- Seed data ----------
 
